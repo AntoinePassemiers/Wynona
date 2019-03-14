@@ -3,6 +3,7 @@
 # author : Antoine Passemiers
 
 from deepcp.nn.base import AdaptiveModule
+from deepcp.nn.res_net import ResNet
 
 import numpy as np
 import torch
@@ -39,73 +40,32 @@ class ConvNet(AdaptiveModule):
             self.global_modules.add_module('global-activation_%i' % (i + 1), activation)
 
         # 1-dimensional modules
-        self.conv_1d = torch.nn.Sequential()
-        for i in range(num_1d_modules - 1):
-            in_size = self.module_1d_in_size if i == 0 else num_kernels
-            conv1d = self.create_conv1d_module(in_size, num_kernels, kernel_size,
-                    batch_norm=self.use_batch_norm,
-                    activation=self.nonlinearity,
-                    bn_track_running_stats=self.bn_track_running_stats,
-                    bn_momentum=self.bn_momentum)
-            self.conv_1d.add_module('1d-conv1d-module-%i' % (i + 1), conv1d)
-        conv1d = torch.nn.Conv1d(
-                num_kernels, self.module_1d_out_size, kernel_size,
-                padding=(kernel_size-1)//2, stride=1)
-        activation = self.nonlinearity()
-        self.conv_1d.add_module('1d-conv1d-last', conv1d)
-        self.conv_1d.add_module('1d-activation-last', activation)
+        self.conv_1d = ResNet(
+                '1D', self.module_1d_in_size,
+                self.module_1d_out_size,
+                num_1d_modules,
+                num_kernels,
+                kernel_size,
+                ndim=1,
+                use_batch_norm=use_batch_norm,
+                nonlinearity=self.nonlinearity,
+                out_nonlinearity=self.nonlinearity,
+                bn_track_running_stats=bn_track_running_stats,
+                bn_momentum=bn_momentum)
 
         # 2-dimensional modules
-        self.conv_2d_1 = torch.nn.Sequential()
-        for i in range(num_2d_modules - 1):
-            in_size = self.module_2d_in_size if i == 0 else num_kernels
-            conv2d = self.create_conv2d_module(in_size, num_kernels, kernel_size,
-                    batch_norm=self.use_batch_norm,
-                    activation=self.nonlinearity,
-                    bn_track_running_stats=self.bn_track_running_stats,
-                    bn_momentum=self.bn_momentum)
-            self.conv_2d_1.add_module('2d-conv2d-module-%i' % (i + 1), conv2d)
-        conv2d = torch.nn.Conv2d(
-                num_kernels, self.n_out_channels, kernel_size,
-                padding=(kernel_size-1)//2, stride=1)
-        activation = torch.nn.Sigmoid()
-        self.conv_2d_1.add_module('2d-conv2d-last', conv2d)
-        self.conv_2d_1.add_module('2d-activation-last', activation)
-    
-    def create_conv1d_module(self, in_size, out_size, kernel_size, stride=1, activation=torch.nn.ReLU,
-                             batch_norm=False, bn_track_running_stats=True, bn_momentum=0.01):
-        layers = list()
-        layers.append(torch.nn.Conv1d(
-                in_size,
-                out_size,
+        self.conv_2d_1 = ResNet(
+                '2D', self.module_2d_in_size,
+                n_out_channels,
+                num_2d_modules,
+                num_kernels,
                 kernel_size,
-                padding=(kernel_size-1)//2,
-                stride=stride,
-                bias=True))
-        layers.append(activation())
-        if batch_norm:
-            layers.append(torch.nn.BatchNorm1d(
-                    out_size,
-                    momentum=bn_momentum,
-                    track_running_stats=bn_track_running_stats))
-        return torch.nn.Sequential(*layers)
-   
-    def create_conv2d_module(self, in_size, out_size, kernel_size, stride=1, activation=torch.nn.ReLU,
-                             batch_norm=False, bn_track_running_stats=True, bn_momentum=0.01):
-        layers = list()
-        layers.append(torch.nn.Conv2d(in_size,
-                out_size,
-                kernel_size,
-                padding=(kernel_size-1)//2,
-                stride=stride,
-                bias=True))
-        layers.append(activation())
-        if batch_norm:
-            layers.append(torch.nn.BatchNorm2d(
-                    out_size,
-                    momentum=bn_momentum,
-                    track_running_stats=bn_track_running_stats))
-        return torch.nn.Sequential(*layers)
+                ndim=2,
+                use_batch_norm=use_batch_norm,
+                nonlinearity=self.nonlinearity,
+                out_nonlinearity=torch.nn.Sigmoid,
+                bn_track_running_stats=bn_track_running_stats,
+                bn_momentum=bn_momentum)
 
     def forward_one_sample(self, _in):
         x_0d, x_1d, x_2d = _in

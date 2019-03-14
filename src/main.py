@@ -26,15 +26,15 @@ DATA_PATH = '../data'
 TEMP_PATH = '../out/temp'
 
 min_aa_separation = 6
-early_stopping = 10
-num_epochs = 40 # TODO
+early_stopping = 1
+num_epochs = 1 #TODO
 
 HYPER_PARAM_SPACE = {
     'activation': ['relu'],
-    'batch_size': [32],
+    'batch_size': [4],
     'bn_momentum': [1.0],
     'bn_track_running_stats': [False],
-    'learning_rate': [5 * 1e-5],
+    'learning_rate': [5 * 1e-4],
     'l2_penalty': [1e-5],
     'momentum_decay_first_order': [0.5],
     'momentum_decay_second_order': [0.999],
@@ -46,7 +46,7 @@ target_contact_threshold = 8.
 
 n_0d_features = 2
 n_1d_features = 114
-n_2d_features = 7
+n_2d_features = 4
 
 
 if DEBUG:
@@ -55,7 +55,7 @@ if DEBUG:
     max_evals = 1
 else:
     training_set_name = 'training_set'
-    validation_set_name = 'validation_set'
+    validation_set_name = 'benchmark_set_membrane'
     max_evals = 1 # TODO
 
 
@@ -81,8 +81,8 @@ def feature_set_to_tensors(feature_set, remove_diag=False):
     X_2D = torch.as_tensor(np.asarray(feature_set.features['2-dim']['values']), dtype=torch.float32)
     X_2D = X_2D[:n_2d_features, :, :]
 
-    #for i, x in enumerate(X_2D):
-    #    X_2D[i, :, :] = torch.as_tensor(apply_apc(x))
+    for i, x in enumerate(X_2D):
+        X_2D[i, :, :] = torch.as_tensor(apply_apc(x))
     #X_2D[6, :, :] = torch.as_tensor(apply_apc(X_2D[6, :, :]))
 
     X = (X_0D, X_1D, X_2D)
@@ -234,7 +234,7 @@ def evaluate(data_manager, model):
 
         entry = evaluation.add('-', '-', pred_cmap, target_cmap, min_aa_separation)
         print('PPV for protein %s: %f' % (seq_name, entry['PPV']))
-    avg_best_l_ppv = evaluation.get('-', 'PPV', criterion='L')
+    avg_best_l_ppv = evaluation.get('-', 'PPV', criterion='L/5')
     print('\nAverage best-L PPV: %f\n' % avg_best_l_ppv)
     return avg_best_l_ppv
 

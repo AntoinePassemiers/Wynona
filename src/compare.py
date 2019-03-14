@@ -41,7 +41,7 @@ if __name__ == '__main__':
     feature_indices = [1, 2, 3, 7, 8, 9, 10, 11]
     evaluation = Evaluation()
     data_manager = DataManager(DATA_PATH, TEMP_PATH)
-    for feature_set in data_manager.proteins(dataset='debug_val'):
+    for feature_set in data_manager.proteins(dataset='benchmark_set_casp11'):
         seq_name = feature_set.prot_name
         distances = feature_set.distances
         target_cmap = ContactMap(np.asarray(distances < target_contact_threshold, dtype=np.double))
