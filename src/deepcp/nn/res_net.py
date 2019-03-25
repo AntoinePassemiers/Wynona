@@ -61,6 +61,7 @@ class ResNet(torch.nn.Module):
                 activation())
 
     def forward(self, X):
+        """
         n_weight_layers = 0
         F_X = X
         for module in self.children():
@@ -73,5 +74,9 @@ class ResNet(torch.nn.Module):
                     X = F_X
                 else:
                     n_weight_layers += 1
+        """
+        F_X = X
+        for module in self.children():
+            F_X = module(F_X)
         return F_X
 

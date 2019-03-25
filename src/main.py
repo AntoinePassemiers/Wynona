@@ -26,8 +26,9 @@ DATA_PATH = '../data'
 TEMP_PATH = '../out/temp'
 
 min_aa_separation = 6
-early_stopping = 1
-num_epochs = 1 #TODO
+early_stopping = 15
+num_epochs = 100 #TODO
+num_steps_for_eval = 5
 
 HYPER_PARAM_SPACE = {
     'activation': ['relu'],
@@ -41,6 +42,7 @@ HYPER_PARAM_SPACE = {
     'use_batch_norm': [True]
 }
 
+TARGET_CONTACT_THRESHOLD_ID = 2
 contact_thresholds = [6., 7.5, 8., 8.5, 10.]
 target_contact_threshold = 8.
 
@@ -90,13 +92,24 @@ def feature_set_to_tensors(feature_set, remove_diag=False):
 
 
 def train_model(data_manager, params, state_dict_path=None):
-    print('Generating dataset...')
+    
+    # Load training proteins
+    print('Loading training sequences...')
     training_set = list()
     for feature_set in data_manager.proteins(dataset=training_set_name):
         X, Y = feature_set_to_tensors(feature_set, remove_diag=False)
         (X_0D, X_1D, X_2D) = X
         if X_0D.size()[0] > 0 and X_1D.size()[0] > 0 and X_2D.size()[0]:
             training_set.append((X, Y))
+
+    # Load validation proteins
+    print('Loading validation sequences...')
+    validation_set = list()
+    for feature_set in data_manager.proteins(dataset=validation_set_name):
+        X, Y = feature_set_to_tensors(feature_set)
+        (X_0D, X_1D, X_2D) = X
+        if X_0D.size()[0] > 0 and X_1D.size()[0] > 0 and X_2D.size()[0]:
+            validation_set.append((X, Y))
 
     # Initialize data loader
     data_loader = AdaptiveDataLoader(
@@ -134,18 +147,16 @@ def train_model(data_manager, params, state_dict_path=None):
         model.load_state_dict(torch.load(state_dict_path))
 
     print('Training model...')
-    training_ppv = list()
-    training_loss = list()
+    training_ppv, validation_ppv, training_loss = list(), list(), list()
     step = 1
     n_steps_without_improvement = 0
-    best_loss = np.inf
+    best_score = -np.inf
     try:
         for epoch in range(num_epochs):
             for i, (X, Y) in enumerate(data_loader):
 
-                # Grounth truth contact maps
-                to_variable = lambda x: Variable(x.type(torch.Tensor))
-                Y = list(map(to_variable, Y))
+                # Ground-truth contact maps
+                Y = list(map(lambda x: Variable(x.type(torch.Tensor)), Y))
                 batch_size = len(Y)
 
                 # Optimization step
@@ -160,24 +171,43 @@ def train_model(data_manager, params, state_dict_path=None):
                 print('\t\tUpdate parameters...') 
                 optimizer.step()
 
-                # Check if loss has decreased in last k steps
-                if training_loss[-1] >= best_loss:
-                    n_steps_without_improvement += 1
-                    if n_steps_without_improvement >= early_stopping:
-                        raise EarlyStoppingException()
-                else:
-                    n_steps_without_improvement = 0
-                    best_loss = training_loss[-1]
-
                 # Compute best-L PPV on current batch
                 evaluation = Evaluation()
                 for pred_map, target_map in zip(predicted, Y):
-                    pred_cmap = ContactMap(np.squeeze(pred_map.data.numpy())[2, :, :])
-                    target_cmap = ContactMap(np.squeeze(target_map.data.numpy())[2, :, :])
+                    pred_cmap = ContactMap(np.squeeze(
+                            pred_map.data.numpy())[TARGET_CONTACT_THRESHOLD_ID, :, :])
+                    target_cmap = ContactMap(np.squeeze(
+                            target_map.data.numpy())[TARGET_CONTACT_THRESHOLD_ID, :, :])
                     evaluation.add('-', '-', pred_cmap, target_cmap, min_aa_separation)
                 avg_best_l_ppv = evaluation.get('-', 'PPV', criterion='L')
                 training_ppv.append(avg_best_l_ppv)
                 print('\tBest-L PPV on current batch: %f' % avg_best_l_ppv)
+
+                if step % num_steps_for_eval == 0:
+
+                    # Compute best-L PPV on validation set
+                    predicted_maps = model.forward([X for X, Y in validation_set])
+                    target_maps = [Y for X, Y in validation_set]
+                    evaluation = Evaluation()
+                    for i in range(len(validation_set)):
+                        pred_cmap = ContactMap(np.squeeze(
+                                predicted_maps[i].data.numpy())[TARGET_CONTACT_THRESHOLD_ID, :, :])
+                        target_cmap = ContactMap(np.squeeze(
+                                target_maps[i].data.numpy())[TARGET_CONTACT_THRESHOLD_ID, :, :])
+                        evaluation.add('-', '-', pred_cmap, target_cmap, min_aa_separation)
+                    avg_best_l_ppv = evaluation.get('-', 'PPV', criterion='L')
+                    validation_ppv.append(avg_best_l_ppv)
+                    print('\tBest-L PPV on validation set: %f' % avg_best_l_ppv)
+
+                    # Check if Best-L PPV has increased over last k steps
+                    if validation_ppv[-1]  <= best_score:
+                        n_steps_without_improvement += num_steps_for_eval
+                        if n_steps_without_improvement >= early_stopping:
+                            raise EarlyStoppingException()
+                    else:
+                        n_steps_without_improvement = 0
+                        best_score = validation_ppv[-1]
+
                 print('End of step %i' % step)
                 step += 1
 
@@ -188,6 +218,7 @@ def train_model(data_manager, params, state_dict_path=None):
         'model': model,
         'training_loss': training_loss,
         'training_ppv': training_ppv,
+        'validation_ppv': validation_ppv,
         'loss': loss
     }
 
@@ -221,10 +252,10 @@ def evaluate(data_manager, model):
     evaluation = Evaluation()
     for i in range(len(validation_set)):
         seq_name = sequence_names[i]
-        pred_cmap = ContactMap(np.squeeze(predicted_maps[i].data.numpy())[2, :, :])
-        target_cmap = ContactMap(np.squeeze(target_maps[i].data.numpy())[2, :, :])
-
-        #pred_cmap = ContactMap(apply_apc(pred_cmap)) # TODO
+        pred_cmap = ContactMap(np.squeeze(
+                predicted_maps[i].data.numpy())[TARGET_CONTACT_THRESHOLD_ID, :, :])
+        target_cmap = ContactMap(np.squeeze(
+                target_maps[i].data.numpy())[TARGET_CONTACT_THRESHOLD_ID, :, :])
 
         plt.imshow(target_cmap)
         plt.show()
