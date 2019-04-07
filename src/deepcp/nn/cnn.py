@@ -17,7 +17,12 @@ class ConvNet(AdaptiveModule):
                  nonlinearity='relu', use_global_features=False, kernel_size=5,
                  num_kernels=64, num_global_modules=3, num_1d_modules=5, num_2d_modules=6):
         super(ConvNet, self).__init__()
-        self.nonlinearity = {'relu': torch.nn.ReLU, 'tanh': torch.nn.Tanh}[nonlinearity.strip().lower()]
+        self.nonlinearity = {
+            'relu': torch.nn.ReLU,
+            'elu' : torch.nn.ELU,
+            'leakyrelu': torch.nn.LeakyReLU,
+            'tanh': torch.nn.Tanh
+            }[nonlinearity.strip().lower()]
         self.use_batch_norm = use_batch_norm
         self.bn_momentum = bn_momentum
         self.bn_track_running_stats = bn_track_running_stats
@@ -33,15 +38,19 @@ class ConvNet(AdaptiveModule):
 
         # Global modules
         self.global_modules = torch.nn.Sequential()
-        for i in range(num_global_modules):
+        for i in range(num_global_modules-1):
             linear = torch.nn.Linear(self.module_0d_in_size, self.module_0d_in_size)
             activation = self.nonlinearity()
             self.global_modules.add_module('global-linear_%i' % (i + 1), linear)
             self.global_modules.add_module('global-activation_%i' % (i + 1), activation)
+        linear = torch.nn.Linear(self.module_0d_in_size, self.module_0d_out_size)
+        self.global_modules.add_module('global-linear-last', linear)
+        self.global_modules.add_module('global-activation-last', self.nonlinearity())
 
         # 1-dimensional modules
         self.conv_1d = ResNet(
-                '1D', self.module_1d_in_size,
+                '1D',
+                self.module_1d_in_size,
                 self.module_1d_out_size,
                 num_1d_modules,
                 num_kernels,
@@ -55,7 +64,8 @@ class ConvNet(AdaptiveModule):
 
         # 2-dimensional modules
         self.conv_2d_1 = ResNet(
-                '2D', self.module_2d_in_size,
+                '2D',
+                self.module_2d_in_size,
                 n_out_channels,
                 num_2d_modules,
                 num_kernels,

@@ -9,8 +9,10 @@ class ResNet(torch.nn.Module):
 
     def __init__(self, name, in_size, out_size, num_modules, num_kernels, kernel_size,
                  ndim=2, use_batch_norm=True, nonlinearity=torch.nn.ReLU,
-                 bn_track_running_stats=False, bn_momentum=0.1, out_nonlinearity=torch.nn.ReLU):
+                 bn_track_running_stats=False, bn_momentum=0.1, out_nonlinearity=torch.nn.ReLU,
+                 residual=True):
         super(ResNet, self).__init__()
+        self.residual = residual
         self.name = name
         self.in_size = in_size
         self.out_size = out_size
@@ -61,22 +63,24 @@ class ResNet(torch.nn.Module):
                 activation())
 
     def forward(self, X):
-        """
+        n_activations = 0
         n_weight_layers = 0
         F_X = X
-        for module in self.children():
-            F_X = module(F_X)
-            if isinstance(module, self.conv_type):
-                n_weight_layers += 1
-            if n_weight_layers % 2 == 0 and n_weight_layers > 0:
-                if F_X.size() == X.size():
-                    F_X += X
-                    X = F_X
-                else:
+        if self.residual:
+            for module in self.children():
+                if isinstance(module, self.conv_type):
                     n_weight_layers += 1
-        """
-        F_X = X
-        for module in self.children():
-            F_X = module(F_X)
+                elif isinstance(module, self.nonlinearity):
+                    if n_activations == 0:
+                        X = F_X
+                    n_activations += 1
+                F_X = module(F_X)
+                if n_weight_layers >= 2 and n_activations >= 2:
+                    if F_X.size() == X.size():
+                        F_X += X
+                        X = F_X
+                        n_weight_layers = n_activations = 0
+        else:
+            for module in self.children():
+                F_X = module(F_X)
         return F_X
-
