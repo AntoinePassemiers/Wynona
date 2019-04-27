@@ -64,4 +64,5 @@ if __name__ == '__main__':
             scores[i, j] = evaluation.get(row_names[i], 'PPV', criterion=col_names[j])
 
     text = create_latex_tabular(col_format, col_names, row_names, scores)
-    print(text)
+    with open('table.tex') as f:
+        f.write(text)

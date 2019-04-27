@@ -1,5 +1,7 @@
 *.exe
 
+*.property/
+property/
 PSICOV150/
 training_set/
 benchmark_set/

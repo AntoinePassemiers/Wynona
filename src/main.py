@@ -19,46 +19,77 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-DEBUG = True
+DEBUG = False
 
 
 DATA_PATH = '../data'
 TEMP_PATH = '../out/temp'
 
 min_aa_separation = 6
-early_stopping = 15
-num_epochs = 100 #TODO
-num_steps_for_eval = 5
+
+
 
 HYPER_PARAM_SPACE = {
-    'activation': ['relu'],
+    'activation': ['leakyrelu'],
     'batch_size': [4],
-    'bn_momentum': [1.0],
+    'bn_momentum': [0.3],
     'bn_track_running_stats': [False],
-    'learning_rate': [5 * 1e-4],
+    'learning_rate': [1e-4],
     'l2_penalty': [1e-5],
     'momentum_decay_first_order': [0.5],
     'momentum_decay_second_order': [0.999],
-    'use_batch_norm': [True]
+    'use_batch_norm': [True],
+    "use_global_features": [True], 
+    'kernel_size': [5],
+    'num_kernels': [128],
+    'num_global_modules': [3],
+    'num_1d_modules': [12],
+    'num_2d_modules': [12]
 }
+"""
+HYPER_PARAM_SPACE = {
+    'activation': ['relu', 'elu', 'leakyrelu', 'tanh'],
+    'batch_size': [1, 2, 4, 8, 16, 32],
+    'bn_momentum': [None] + [float(x) for x in np.arange(0.1, 1.0, 0.1)],
+    'bn_track_running_stats': [True, False],
+    'learning_rate': [float(x) for x in np.power(10., -np.arange(3, 6, 0.5))],
+    'l2_penalty': [float(x) for x in np.power(10., -np.arange(3, 6, 0.5))],
+    'momentum_decay_first_order': [0.5],
+    'momentum_decay_second_order': [0.999],
+    'use_batch_norm': [True, False],
+    "use_global_features": [True, False],
+    'kernel_size': [3, 5, 7],
+    'num_kernels': [8, 16, 32, 64, 128],
+    'num_global_modules': [int(x) for x in np.arange(2, 11)],
+    'num_1d_modules': [int(x) for x in np.arange(2, 11)],
+    'num_2d_modules': [int(x) for x in np.arange(2, 11)]
+}
+"""
+
 
 TARGET_CONTACT_THRESHOLD_ID = 2
 contact_thresholds = [6., 7.5, 8., 8.5, 10.]
 target_contact_threshold = 8.
 
-n_0d_features = 2
-n_1d_features = 114
-n_2d_features = 4
+n_0d_features = 1
+n_1d_features = 121
+n_2d_features = 7
 
 
 if DEBUG:
     training_set_name = 'debug'
     validation_set_name = 'debug_val'
     max_evals = 1
+    early_stopping = 100
+    num_epochs = 1000
+    num_steps_for_eval = 20
 else:
-    training_set_name = 'training_set'
-    validation_set_name = 'benchmark_set_membrane'
-    max_evals = 1 # TODO
+    training_set_name = 'training_set_all'
+    validation_set_name = 'validation_set'
+    max_evals = 1
+    early_stopping = 1000
+    num_epochs = 50000
+    num_steps_for_eval = 50
 
 
 def feature_set_to_tensors(feature_set, remove_diag=False):
@@ -76,16 +107,17 @@ def feature_set_to_tensors(feature_set, remove_diag=False):
     Y = torch.as_tensor(contacts, dtype=torch.float32)
 
     X_0D = torch.as_tensor(np.asarray(feature_set.features['global']['values']), dtype=torch.float32)
+    X_0D = X_0D[:n_0d_features]
     if X_0D.size()[0] >= 2:
-        X_0D[0] /= 1000.
-        X_0D[1] /= 10000.
+        X_0D[0] = min(X_0D[0] / 1000., 1.)
+        #X_0D[1] = min(X_0D[1] / 10000., 1.)
     X_1D = torch.as_tensor(np.asarray(feature_set.features['1-dim']['values']), dtype=torch.float32)
+    X_1D = X_1D[:n_1d_features, :]
     X_2D = torch.as_tensor(np.asarray(feature_set.features['2-dim']['values']), dtype=torch.float32)
     X_2D = X_2D[:n_2d_features, :, :]
 
     for i, x in enumerate(X_2D):
         X_2D[i, :, :] = torch.as_tensor(apply_apc(x))
-    #X_2D[6, :, :] = torch.as_tensor(apply_apc(X_2D[6, :, :]))
 
     X = (X_0D, X_1D, X_2D)
     return X, Y
@@ -123,6 +155,13 @@ def train_model(data_manager, params, state_dict_path=None):
             n_1d_features,
             n_2d_features,
             len(contact_thresholds),
+            nonlinearity=params['activation'],
+            use_global_features=params['use_global_features'],
+            kernel_size=params['kernel_size'],
+            num_kernels=params['num_kernels'],
+            num_global_modules=params['num_global_modules'],
+            num_1d_modules=params['num_1d_modules'],
+            num_2d_modules=params['num_2d_modules'],
             use_batch_norm=params['use_batch_norm'],
             bn_momentum=params['bn_momentum'],
             bn_track_running_stats=params['bn_track_running_stats'])
@@ -140,11 +179,6 @@ def train_model(data_manager, params, state_dict_path=None):
 
     # Initialize loss
     criterion = BinaryCrossEntropy()
-
-    # Initialize weights from saved file
-    if state_dict_path:
-        model.state_dict()
-        model.load_state_dict(torch.load(state_dict_path))
 
     print('Training model...')
     training_ppv, validation_ppv, training_loss = list(), list(), list()
@@ -205,6 +239,7 @@ def train_model(data_manager, params, state_dict_path=None):
                         if n_steps_without_improvement >= early_stopping:
                             raise EarlyStoppingException()
                     else:
+                        torch.save(model.state_dict(), state_dict_path) # Checkpoint
                         n_steps_without_improvement = 0
                         best_score = validation_ppv[-1]
 
@@ -213,13 +248,22 @@ def train_model(data_manager, params, state_dict_path=None):
 
     except EarlyStoppingException:
         print('Early stopping. Loss did not decrease during last %i steps.' % early_stopping)
-    loss = -evaluate(data_manager, model)
+
+    # Load model state from last checkpoint
+    model.load_state_dict(torch.load(state_dict_path))
+
+    # Deactivate dropout, batchnorm, etc.
+    model.eval()
+
+    # Compute Best-L PPV on validation set
+    avg_best_l_ppv = evaluate(data_manager, model)
+
     return {
         'model': model,
         'training_loss': training_loss,
         'training_ppv': training_ppv,
         'validation_ppv': validation_ppv,
-        'loss': loss
+        'loss': -avg_best_l_ppv
     }
 
 
@@ -228,16 +272,16 @@ def hyper_optimization():
     save_folder = 'hyperopt'
     hyperoptimizer = Hyperoptimizer(
             HYPER_PARAM_SPACE,
-            lambda params: train_model(data_manager, params),
+            lambda params: train_model(
+                    data_manager,
+                    params,
+                    state_dict_path=os.path.join(TEMP_PATH, 'model.pt')),
             save_folder,
             max_evals=max_evals)
     hyperoptimizer.run()
 
 
 def evaluate(data_manager, model):
-    #torch.save(result['model'].state_dict(), 'model.pt')
-    model.eval()
-
     validation_set = list()
     sequence_names = list()
     target_maps = list()
@@ -270,4 +314,54 @@ def evaluate(data_manager, model):
     return avg_best_l_ppv
 
 
+def predict():
+    # Initialize model
+    model = ConvNet(
+            n_0d_features,
+            n_1d_features,
+            n_2d_features,
+            len(contact_thresholds),
+            nonlinearity='leakyrelu',
+            use_global_features=True,
+            kernel_size=5,
+            num_kernels=128,
+            num_global_modules=3,
+            num_1d_modules=12,
+            num_2d_modules=12,
+            use_batch_norm=True,
+            bn_momentum=0.3,
+            bn_track_running_stats=False)
+
+    state_dict_path = os.path.join(TEMP_PATH, 'model.pt')
+    model.load_state_dict(torch.load(state_dict_path))
+
+    model.eval()
+
+    validation_set = list()
+    sequence_names = list()
+    target_maps = list()
+    for feature_set in data_manager.proteins(dataset='benchmark_set_casp11'):
+        sequence_names.append(feature_set.prot_name)
+        X, Y = feature_set_to_tensors(feature_set)
+        target_maps.append(Y)
+        validation_set.append(X)
+    predicted_maps = model.forward(validation_set)
+
+    # Saves short-range PPV, medium-range PPV, long-range PPV, MCC, accuracy, etc.
+    evaluation = Evaluation()
+    for i in range(len(validation_set)):
+        seq_name = sequence_names[i]
+        pred_cmap = ContactMap(np.squeeze(
+                predicted_maps[i].data.numpy())[TARGET_CONTACT_THRESHOLD_ID, :, :])
+        target_cmap = ContactMap(np.squeeze(
+                target_maps[i].data.numpy())[TARGET_CONTACT_THRESHOLD_ID, :, :])
+
+        entry = evaluation.add('-', '-', pred_cmap, target_cmap, min_aa_separation)
+        print('PPV for protein %s: %f' % (seq_name, entry['PPV']))
+    avg_best_l_ppv = evaluation.get('-', 'PPV', criterion='L/5')
+    print('\nAverage best-L PPV: %f\n' % avg_best_l_ppv)
+    return avg_best_l_ppv
+
+
+# predict()
 hyper_optimization()

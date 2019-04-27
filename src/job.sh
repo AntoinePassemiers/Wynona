@@ -1,9 +1,9 @@
 #!/bin/sh -l
 
-#PBS -l walltime=120:00:00
+#PBS -l walltime=100:00:00
 #PBS -l nodes=1:ppn=8
-#PBS -l mem=8gb
-#PBS -l file=32gb
+#PBS -l mem=128gb
+#PBS -l file=1000gb
 #PBS -N deepcp
 #PBS -o deepcp.out
 #PBS -e deepcp.err

@@ -245,7 +245,7 @@ def extract_features_1d(cnp.uint8_t[:, :] msa, list feature_names):
                 for i in range(msa.shape[1]):
                     for k in range(N_AA_SYMBOLS):
                         self_info[i, k] = libc.math.log2(counts[i, k] / UNIREF50_AA_FREQS[k])
-                    for l in range(N_AA_SYMBOLS):
+                    for l in range(N_AA_SYMBOLS): # TO REMOVE
                         self_info[i, N_AA_SYMBOLS+l] = libc.math.log2(counts[i, l] / UNIREF50_AA_FREQS[l])
             features.append(np.asarray(self_info, dtype=np.float32))
         

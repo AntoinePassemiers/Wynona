@@ -16,6 +16,9 @@ import warnings
 import numpy as np
 import pandas as pd
 
+import minineedle # https://github.com/scastlara/minineedle
+import miniseq # https://github.com/scastlara/miniseq
+
 try:
     # Subclassing is not required
     # -> We can use pickle's C implementation
@@ -65,6 +68,27 @@ class PairsParser(Parser):
                 warnings.warn("Warning: Pairs of residues are missing from the contacts text file")
                 warnings.warn("Number of missing pairs: %i " % np.isnan(data).sum())
             return data
+
+
+class SS3Parser(Parser):
+
+    def __init__(self, target_indices=[3, 4, 5]):
+        self.target_indices = target_indices
+
+    def getSupportedExtensions(self):
+        return ['.ss3', '.acc', '.diso', '.txt']
+
+    def __parse__(self, filepath):
+        data = list()
+        with open(filepath, 'r') as f:
+            lines = f.readlines()
+        for line in lines:
+            if line.startswith('#'):
+                pass
+            elif len(line) > 2:
+                els = line.split()
+                data.append([float(els[i]) for i in self.target_indices])
+        return np.asarray(data)
 
 
 class CBParser(PairsParser):
@@ -246,10 +270,6 @@ class ResidueId:
         return hash(self.__float__())
 
 
-import minineedle # https://github.com/scastlara/minineedle
-import miniseq # https://github.com/scastlara/miniseq
-
-
 class PDBParser(Parser):
 
     def __init__(self, sequence, prot_name, method='CASP'):
@@ -275,12 +295,15 @@ class PDBParser(Parser):
         return valid
 
     def align_query_sequence(self, query_seq, whole_seq):
-        query_seq = miniseq.Protein('', query_seq)
-        whole_seq = miniseq.Protein('', whole_seq)
-        alignment = minineedle.Needleman(query_seq, whole_seq)
-        alignment.align()
-        assert(len(whole_seq) == len(alignment.alseq2))
-        indices = [i for i, res_name in enumerate(alignment.alseq1) if res_name != '-']
+        if len(query_seq) != len(whole_seq):
+            query_seq = miniseq.Protein('', query_seq)
+            whole_seq = miniseq.Protein('', whole_seq)
+            alignment = minineedle.Needleman(query_seq, whole_seq)
+            alignment.align()
+            assert(len(whole_seq) == len(alignment.alseq2))
+            indices = [i for i, res_name in enumerate(alignment.alseq1) if res_name != '-']
+        else:
+            indices = [i for i, res_name in enumerate(query_seq) if res_name != '-']
         return indices
 
     def res_name_to_sym(self, res_name):
@@ -355,10 +378,10 @@ def parse_folder(folder, prot_name):
     L = len(sequence)
 
     # Get Distance map
-    if os.path.isfile(os.path.join(folder, 'contacts.CB')):
-        distances = np.squeeze(CBParser().parse(os.path.join(folder, 'contacts.CB')))
-    elif os.path.isfile(os.path.join(folder, 'closest.Jan13.contacts')):
+    if os.path.isfile(os.path.join(folder, 'closest.Jan13.contacts')):
         distances = np.squeeze(CBParser().parse(os.path.join(folder, 'closest.Jan13.contacts')))
+    elif os.path.isfile(os.path.join(folder, 'contacts.CB')):
+        distances = np.squeeze(CBParser().parse(os.path.join(folder, 'contacts.CB')))
     else:
         distances = PDBParser(sequence, prot_name).parse(os.path.join(folder, 'native.pdb'))
     print((np.isnan(distances).sum() / float(L ** 2)))
@@ -370,7 +393,8 @@ def parse_folder(folder, prot_name):
     else:
         alignment = FastaParser().parse(os.path.join(folder, 'sequence.fa.blits4.trimmed'))['sequences']
     msa = np.asarray([sequence.to_array() for sequence in alignment], dtype=np.uint8)
-    msa_weights = compute_weights(msa, 0.8)
+    #msa_weights = compute_weights(msa, 0.8)
+    msa_weights = np.ones(len(msa))
 
     # Create feature set to be saved later
     features = FeatureSet(prot_name, alignment, msa_weights, distances)
@@ -436,10 +460,17 @@ def parse_folder(folder, prot_name):
     features.add('self-information', self_information.T)
     features.add('partial-entropy', partial_entropy.T)
     features.add('ohe-sequence', ohe_sequence.T)
+    ss3 = SS3Parser([3, 4, 5]).parse(os.path.join(folder, 'ss3.txt')).T
+    acc = SS3Parser([3, 4, 5]).parse(os.path.join(folder, 'acc.txt')).T
+    diso = SS3Parser([3]).parse(os.path.join(folder, 'diso.txt')).T
+    assert(diso.shape[0] == 1)
+    features.add('ss3', ss3)
+    features.add('acc', acc)
+    features.add('diso', diso)
 
     # Add global features
     features.add('sequence-length', L)
-    M_eff = np.sum(msa_weights)
-    features.add('M-eff', M_eff)
+    #M_eff = np.sum(msa_weights)
+    #features.add('M-eff', M_eff)
 
     return features.concat()
