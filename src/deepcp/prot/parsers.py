@@ -407,12 +407,12 @@ def parse_folder(folder, prot_name):
     if os.path.isfile(os.path.join(folder, 'plmdca.out')):
         plmdca = PredictionFileParser(L, delimiter=',').parse(os.path.join(folder, 'plmdca.out'))
     else:
-        plmdca = PredictionFileParser(L, delimiter=',').parse(os.path.join(folder, 'sequence.fa.blits4.plmdca2'))
+        plmdca = PredictionFileParser(L, delimiter=',').parse(os.path.join(folder, 'sequence.fa.plmdca2'))
     features.add('plmdca', plmdca)
     if os.path.isfile(os.path.join(folder, 'psicov.out')):
         psicov = PredictionFileParser(L).parse(os.path.join(folder, 'psicov.out'))
     else:
-        psicov = PredictionFileParser(L).parse(os.path.join(folder, 'sequence.fa.blits4.psicov2'))
+        psicov = PredictionFileParser(L).parse(os.path.join(folder, 'sequence.fa.psicov2'))
     features.add('psicov', psicov)
 
     # Get additional features from multiple sequence alignment

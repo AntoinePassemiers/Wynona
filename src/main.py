@@ -14,6 +14,7 @@ from deepcp.nn import Hyperoptimizer
 import torch
 from torch.autograd import Variable
 import os
+import copy
 import random
 import numpy as np
 import matplotlib.pyplot as plt
@@ -35,16 +36,16 @@ HYPER_PARAM_SPACE = {
     'bn_momentum': [0.3],
     'bn_track_running_stats': [False],
     'learning_rate': [1e-4],
-    'l2_penalty': [1e-5],
+    'l2_penalty': [1e-4],
     'momentum_decay_first_order': [0.5],
     'momentum_decay_second_order': [0.999],
     'use_batch_norm': [True],
     "use_global_features": [True], 
-    'kernel_size': [5],
+    'kernel_size': [7],
     'num_kernels': [128],
     'num_global_modules': [3],
-    'num_1d_modules': [12],
-    'num_2d_modules': [12]
+    'num_1d_modules': [18],
+    'num_2d_modules': [18]
 }
 """
 HYPER_PARAM_SPACE = {
@@ -84,8 +85,8 @@ if DEBUG:
     num_epochs = 1000
     num_steps_for_eval = 20
 else:
-    training_set_name = 'training_set_all'
-    validation_set_name = 'validation_set'
+    training_set_name = 'training_set_2'
+    validation_set_name = 'validation_set_2'
     max_evals = 1
     early_stopping = 1000
     num_epochs = 50000
@@ -285,6 +286,7 @@ def evaluate(data_manager, model):
     validation_set = list()
     sequence_names = list()
     target_maps = list()
+    data_manager = DataManager(DATA_PATH, TEMP_PATH)
     for feature_set in data_manager.proteins(dataset=validation_set_name):
         sequence_names.append(feature_set.prot_name)
         X, Y = feature_set_to_tensors(feature_set)
@@ -314,7 +316,8 @@ def evaluate(data_manager, model):
     return avg_best_l_ppv
 
 
-def predict():
+def load_model(name='model1.pt'):
+    print('Loading model %s' % name)
     # Initialize model
     model = ConvNet(
             n_0d_features,
@@ -323,45 +326,108 @@ def predict():
             len(contact_thresholds),
             nonlinearity='leakyrelu',
             use_global_features=True,
-            kernel_size=5,
+            kernel_size=7,
             num_kernels=128,
             num_global_modules=3,
-            num_1d_modules=12,
-            num_2d_modules=12,
+            num_1d_modules=18,
+            num_2d_modules=18,
             use_batch_norm=True,
             bn_momentum=0.3,
             bn_track_running_stats=False)
-
-    state_dict_path = os.path.join(TEMP_PATH, 'model.pt')
+    state_dict_path = os.path.join(TEMP_PATH, name)
     model.load_state_dict(torch.load(state_dict_path))
-
     model.eval()
+    return model
 
-    validation_set = list()
-    sequence_names = list()
-    target_maps = list()
+
+def plot_weights():
+    model = load_model(name='model.pt')
+    subnetworks = list(model.children())
+    mlp = subnetworks[0]
+    resnet_1d = subnetworks[1]
+    resnet_2d = subnetworks[2]
+    convs = [layer for layer in resnet_2d.children() if isinstance(layer, torch.nn.Conv2d)]
+    conv = convs[0]
+
+    L = 10
+    X = torch.as_tensor(np.random.rand(1, 3, L, L))
+    print(conv._backward(X))
+
+
+    """
+    Xs = list()
+    data_manager = DataManager(DATA_PATH, TEMP_PATH)
+    for feature_set in data_manager.proteins(dataset='debug'):
+        X, _ = feature_set_to_tensors(feature_set)
+        L = int(X[0][0])
+        X = X[2].data.numpy()
+        X = torch.as_tensor(np.concatenate([X[np.newaxis, ...], np.random.rand(1, 3, L, L)], axis=1), dtype=torch.float32)
+        Xs.append(X)
+
+    M = list()
+    for i in range(len(Xs)):
+        X = Xs[i]
+        Y = conv.forward(X)
+        Y = Y.data.numpy()
+
+        sigmoid = lambda x: 1. / (1. + np.exp(-x))
+
+        Y = sigmoid(Y)[0, 2, :, :]
+
+        idx = np.where(Y == np.min(Y))
+        idx_i, idx_j = idx[0][0], idx[1][0]
+
+        X = X.data.numpy()[0, 2, :, :]
+        X = X[idx_i-4:idx_i+5, idx_j-4:idx_j+5]
+        if X.shape == (9, 9):
+
+            plt.imshow(X)
+            plt.colorbar()
+            plt.show()
+
+            M.append(X)
+
+    X = np.mean(np.asarray(M), axis=0)
+    plt.imshow(X)
+    plt.colorbar()
+    plt.show()
+
+    print(idx_i, idx_j)
+    """
+
+
+def predict():
+    validation_set, sequence_names, target_maps = list(), list(), list()
+    data_manager = DataManager(DATA_PATH, TEMP_PATH)
     for feature_set in data_manager.proteins(dataset='benchmark_set_casp11'):
         sequence_names.append(feature_set.prot_name)
         X, Y = feature_set_to_tensors(feature_set)
-        target_maps.append(Y)
         validation_set.append(X)
-    predicted_maps = model.forward(validation_set)
+        target_maps.append(Y)
 
+    print('Predicting...')
+    predicted_maps = dict()
+    for k in range(5):
+        model = load_model(name='model%i.pt' % (k+1))
+        predicted_maps[k] = [np.squeeze(Y.data.numpy()) for Y in model.forward(validation_set)]
+
+    print('Evaluating...')
     # Saves short-range PPV, medium-range PPV, long-range PPV, MCC, accuracy, etc.
     evaluation = Evaluation()
     for i in range(len(validation_set)):
         seq_name = sequence_names[i]
-        pred_cmap = ContactMap(np.squeeze(
-                predicted_maps[i].data.numpy())[TARGET_CONTACT_THRESHOLD_ID, :, :])
+        pred_cmap = ContactMap(np.mean(np.asarray([predicted_maps[k][i][TARGET_CONTACT_THRESHOLD_ID, :, :] for k in range(5)]), axis=0))
+
         target_cmap = ContactMap(np.squeeze(
                 target_maps[i].data.numpy())[TARGET_CONTACT_THRESHOLD_ID, :, :])
 
         entry = evaluation.add('-', '-', pred_cmap, target_cmap, min_aa_separation)
         print('PPV for protein %s: %f' % (seq_name, entry['PPV']))
-    avg_best_l_ppv = evaluation.get('-', 'PPV', criterion='L/5')
+    avg_best_l_ppv = evaluation.get('-', 'PPV', criterion='L/10')
     print('\nAverage best-L PPV: %f\n' % avg_best_l_ppv)
     return avg_best_l_ppv
 
 
-# predict()
-hyper_optimization()
+#predict()
+#hyper_optimization()
+plot_weights()

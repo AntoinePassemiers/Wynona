@@ -2,13 +2,16 @@ from gaussfold import GaussFold, Optimizer, tm_score, rmsd
 from gaussfold import PDBParser, SS3Parser, FastaParser, ContactParser
 
 import os
+import warnings
 import numpy as np
 from sklearn.manifold import MDS
 
+with warnings.catch_warnings():
+    warnings.simplefilter('ignore')
+
 
 folders = os.listdir('PSICOV150')
-for f in ['1A3A_A']:
-    folders.remove(f)
+folders = [folders[2]]
 for folder in folders:
 
     sequence_name = folder.replace('_', '')
@@ -47,19 +50,17 @@ for folder in folders:
 
     assert(not np.isnan(ssp).any())
 
-    gf = GaussFold(sep=1)
+    gf = GaussFold(sep=1, n_init_sols=1)
     gf.optimizer = Optimizer(
-        pop_size=1000,       # Population size
-        n_iter=200000,       # Maximum number of iterations
-        partition_size=20,  # Partition size for the selection of parents
-        mutation_rate=0.5,   # Percentage of child's points to be mutated
-        mutation_std=.1,    # Stdv of mutation noise
-        init_std=30.,        # Stdv for randomly generating initial solutions
+        pop_size=1000,        # Population size
+        n_iter=200000,        # Maximum number of iterations
+        partition_size=20,    # Partition size for the selection of parents
+        mutation_rate=0.5,    # Percentage of child's points to be mutated
+        mutation_std=.1,      # Stdv of mutation noise
+        init_std=30.,         # Stdv for randomly generating initial solutions
         early_stopping=20000) # Maximum number of iterations without improvement
     coords_predicted = gf.run(cmap, ssp, verbose=True)
 
     tm = tm_score(coords_predicted, coords_target)
     r = rmsd(coords_predicted, coords_target)
     print('%s & %.2f & %.2f' % (sequence_name, tm, r))
-
-    break
