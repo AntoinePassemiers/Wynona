@@ -2,7 +2,7 @@
 # evaluation.py
 # author : Antoine Passemiers
 
-from deepcp.prot.exceptions import ContactMapException, EvaluationException
+from wynona.prot.exceptions import ContactMapException, EvaluationException
 
 import copy
 import numpy as np
@@ -15,36 +15,38 @@ class Evaluation:
         def __init__(self, name, pred_cmap, target_cmap, min_aa_separation, criterion='L'):
             self.name = name
             self.criterion = criterion
-            L = len(pred_cmap)
+            self.L = len(pred_cmap)
             if criterion == 'L':
-                n_top = L
+                n_top = self.L
             elif criterion == 'L/2':
-                n_top = L // 2
+                n_top = self.L // 2
             elif criterion == 'L/5':
-                n_top = L // 5
+                n_top = self.L // 5
             elif criterion == 'L/10':
-                n_top = L // 10
+                n_top = self.L // 10
             else:
                 raise EvaluationException('Unknown evaluation criterion: %s' % criterion)
-
-            try:
-                self.pred_cmap = pred_cmap.top(n_top, min_aa_separation=min_aa_separation)
-            except ContactMapException:
-                self.pred_cmap = pred_cmap
-            
+            self.pred_cmap = pred_cmap
             self.target_cmap = target_cmap
             self.min_aa_separation = min_aa_separation
-            self.metrics = self.compute_metrics()
-            for lb, ub, name in [(min_aa_separation, 12, 'short'), (12, 24, 'medium'), (24, None, 'long')]:
-                new_metrics = self.compute_metrics(_range=(lb, ub))
+            self.metrics = self.compute_metrics(n_top)
+            for lb, ub, name in [(min_aa_separation, 12, 'short'),
+                                 (12, 24, 'medium'),
+                                 (24, None, 'long')]:
+                new_metrics = self.compute_metrics(n_top, _range=(lb, ub))
                 for key in new_metrics.keys():
                     self.metrics[key+'-'+name] = new_metrics[key]
         
-        def compute_metrics(self, _range=[None, None]):
-            assert(self.pred_cmap.is_binary() and self.target_cmap.is_binary())
+        def compute_metrics(self, n_top, _range=[None, None]):
+            #assert(self.pred_cmap.is_binary() and self.target_cmap.is_binary())
             if _range[0] is None:
                 _range[0] = self.min_aa_separation
-            predictions = self.pred_cmap.in_range(_range[0], _range[1])
+            pred_cmap = self.pred_cmap.copy()
+            predictions = pred_cmap.in_range(_range[0], _range[1])
+            try:
+                predictions = predictions.top(n_top)
+            except ContactMapException:
+                pass
             targets = self.target_cmap.in_range(_range[0], _range[1])
             nonan = ~np.isnan(targets)
             predictions = predictions[nonan]
@@ -87,20 +89,22 @@ class Evaluation:
             name = self.dir_name(algorithm_name, criterion)
             if not name in self.data.keys():
                 self.data[name] = {
-                    'entries': list(),
+                    'entries': dict(),
                     'averaged-metrics': dict() }
-            self.data[name]['entries'].append(entry)
+            self.data[name]['entries'][seq_name] = entry
             self.data[name]['averaged-metrics'] = dict()
-            n_entries = len(self.data[name]['entries'])
+            n_entries = len(self.data[name]['entries'].values())
             for metric_name in entry.keys():
-                for entry in self.data[name]['entries']:
+                for entry in self.data[name]['entries'].values():
                     if metric_name not in self.data[name]['averaged-metrics'].keys():
                         self.data[name]['averaged-metrics'][metric_name] = entry[metric_name]
                     else:
                         self.data[name]['averaged-metrics'][metric_name] += entry[metric_name]
                 self.data[name]['averaged-metrics'][metric_name] /= n_entries
-        return entry
 
-    def get(self, algorithm_name, metric_name, criterion='L'):
+    def get(self, algorithm_name, metric_name, criterion='L', seq_name=None):
         name = self.dir_name(algorithm_name, criterion)
-        return self.data[name]['averaged-metrics'][metric_name]
+        if seq_name is None:
+            return self.data[name]['averaged-metrics'][metric_name]
+        else:
+            return self.data[name]['entries'][seq_name][metric_name]

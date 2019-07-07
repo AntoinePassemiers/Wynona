@@ -7,11 +7,13 @@ import numpy as np
 
 class FeatureSet:
 
-    def __init__(self, prot_name, msa, msa_weights, distances):
+    def __init__(self, prot_name, msa, msa_weights, distances, coordinates, ssp):
         self.prot_name = prot_name
         self.msa = msa
         self.msa_weights = msa_weights
         self.distances = distances
+        self.coordinates = coordinates
+        self.ssp = ssp
         self.features = {
             'global': { 'names': list(), 'values': list() },
             '1-dim': { 'names': list(), 'values': list() },

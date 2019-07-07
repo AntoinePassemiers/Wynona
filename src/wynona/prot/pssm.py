@@ -2,12 +2,12 @@
 # pssm.py
 # author : Antoine Passemiers
 
+from wynona.prot.parsers import FastaParser
+from wynona.prot.sequence import *
+from wynona.prot.utils import DATA_FOLDER
+
 import numpy as np
 import matplotlib.pyplot as plt
-
-from deepcp.prot.parsers import FastaParser
-from deepcp.prot.sequence import *
-from deepcp.prot.utils import DATA_FOLDER
 
 
 # web.expasy.org/docs/relnotes/relstat.html

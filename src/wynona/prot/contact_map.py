@@ -2,7 +2,7 @@
 # contact_map.py
 # author : Antoine Passemiers
 
-from deepcp.prot.exceptions import ContactMapException
+from wynona.prot.exceptions import ContactMapException
 
 import numpy as np
 import warnings
@@ -52,12 +52,12 @@ class ContactMap:
         """
         return np.logical_or(self.cmap == 1, self.cmap == 0).all()
     
-    def top(self, Lk, min_aa_separation=6):
-        """Keep only Lk top predictions in lower triangle with given minimal
-        residue distance.
+    def top(self, n_top, min_aa_separation=6):
+        """Keep only `n_top` highest predictions in lower triangle
+        with given minimal residue distance.
 
         Parameters:
-            Lk (int):
+            n_top (int):
                 Number of top predictions to retain.
             min_aa_separation (int):
                 Minimum number of residue separation. All elements with
@@ -65,19 +65,19 @@ class ContactMap:
 
         Returns:
             :obj:`ContactMap`:
-                New contact map where only Lk top predictions in lower triangle
-                w.r.t. given residue distance are not set to zero.
+                New contact map where only `n_top` highest predictionsin lower
+                triangle w.r.t. given residue distance are not set to zero.
         """
         if self.is_binary():
             raise ContactMapException('Calling top(...) on binary contact map')
-        indices = np.tril_indices(self.L, k=-min_aa_separation-12)
+        indices = np.tril_indices(self.L, k=-min_aa_separation)
         idx = np.argsort(self.cmap[indices[0], indices[1]])
-        indices = (indices[0][idx[-Lk:]], indices[1][idx[-Lk:]])
+        indices = (indices[0][idx[-n_top:]], indices[1][idx[-n_top:]])
         new_cmap = np.zeros((self.L, self.L), dtype=np.bool)
         new_cmap[indices] = 1
         return ContactMap(new_cmap)
     
-    def in_range(self, lower_bound, upper_bound=None, symmetric=False, value=0):
+    def in_range(self, lower_bound, upper_bound=None, symmetric=False):
         mask = np.zeros((self.L, self.L), dtype=np.bool)
         more_than_lb = np.tril_indices(self.L, -lower_bound)
         mask[more_than_lb] = True

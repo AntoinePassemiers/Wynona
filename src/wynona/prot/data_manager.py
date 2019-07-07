@@ -2,7 +2,7 @@
 # data_manager.py
 # author : Antoine Passemiers
 
-from deepcp.prot.parsers import parse_folder
+from wynona.prot.parsers import parse_folder
 
 import os
 import copy

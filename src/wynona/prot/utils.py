@@ -2,7 +2,7 @@
 # utils.py
 # author : Antoine Passemiers
 
-from deepcp.prot.contact_map import ContactMap
+from wynona.prot.contact_map import ContactMap
 
 import os
 import copy
@@ -17,12 +17,16 @@ import matplotlib.patches as mpatches
 from matplotlib.colors import LinearSegmentedColormap
 
 
-def comparative_plot(target_cmap, pred_cmap, pred_cmap2=None, min_aa_separation=6):
+def comparative_plot(target_cmap, pred_cmap, pred_cmap2=None, min_aa_separation=6, top=None):
     assert(~np.isnan(pred_cmap.asarray()).any())
     L = target_cmap.shape[0]
-    pred_cmap = pred_cmap.top(L).asarray()
+    if top is None:
+        top = L
+    else:
+        top = int(np.round(top))
+    pred_cmap = pred_cmap.top(top).asarray()
     if pred_cmap2 is not None:
-        pred_cmap2 = pred_cmap2.top(L).asarray()
+        pred_cmap2 = pred_cmap2.top(top).asarray()
 
     def find_tpfp(target, pred):
         L = target.shape[0]
@@ -31,10 +35,10 @@ def comparative_plot(target_cmap, pred_cmap, pred_cmap2=None, min_aa_separation=
         FPS = np.logical_and(pred == 1, target == 0)
         FNS = np.logical_and(pred == 0, target == 1)
         TNS = np.logical_and(pred == 0, target == 0)
-        contact_map[TPS] = 3
-        contact_map[FPS] = 2
-        contact_map[FNS] = 1
-        contact_map[TNS] = 0
+        contact_map[TPS] = 3 # orangered
+        contact_map[FPS] = 2 # purple
+        contact_map[FNS] = 1 # grey
+        contact_map[TNS] = 0 # white
         return contact_map
 
     ticks = [0, L-1]

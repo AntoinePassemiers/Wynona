@@ -11,7 +11,7 @@ with warnings.catch_warnings():
 
 
 folders = os.listdir('PSICOV150')
-folders = [folders[2]]
+folders = [folders[3]]
 for folder in folders:
 
     sequence_name = folder.replace('_', '')
@@ -52,8 +52,9 @@ for folder in folders:
 
     gf = GaussFold(sep=1, n_init_sols=1)
     gf.optimizer = Optimizer(
+        use_lbfgs=True,       # Use L-BFGS for improving new solutions
         pop_size=1000,        # Population size
-        n_iter=200000,        # Maximum number of iterations
+        n_iter=300000,        # Maximum number of iterations
         partition_size=20,    # Partition size for the selection of parents
         mutation_rate=0.5,    # Percentage of child's points to be mutated
         mutation_std=.1,      # Stdv of mutation noise

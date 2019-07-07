@@ -2,14 +2,16 @@
 # main.py
 # author : Antoine Passemiers
 
-from deepcp.prot.contact_map import ContactMap
-from deepcp.prot.data_manager import DataManager
-from deepcp.prot.evaluation import Evaluation
-from deepcp.prot.exceptions import EarlyStoppingException
-from deepcp.prot.utils import *
-from deepcp.prot.parsers import apply_apc
-from deepcp.nn import ConvNet, AdaptiveDataLoader, BinaryCrossEntropy
-from deepcp.nn import Hyperoptimizer
+from wynona.prot.contact_map import ContactMap
+from wynona.prot.data_manager import DataManager
+from wynona.prot.evaluation import Evaluation
+from wynona.prot.exceptions import EarlyStoppingException
+from wynona.prot.utils import *
+from wynona.prot.parsers import apply_apc
+from wynona.nn import ConvNet, AdaptiveDataLoader, BinaryCrossEntropy
+from wynona.nn import Hyperoptimizer
+
+from gaussfold import GaussFold, Optimizer, tm_score, rmsd
 
 import torch
 from torch.autograd import Variable
@@ -18,6 +20,9 @@ import copy
 import random
 import numpy as np
 import matplotlib.pyplot as plt
+
+import sys
+sys.stdout = open('out.txt', 'w', buffering=1)
 
 
 DEBUG = False
@@ -96,7 +101,7 @@ else:
 def feature_set_to_tensors(feature_set, remove_diag=False):
     distances = feature_set.distances
     L = distances.shape[1]
-
+    print(feature_set.prot_name, L)
     contacts = list()
     for contact_threshold in contact_thresholds:
         cmap = ContactMap(distances < contact_threshold)
@@ -340,94 +345,93 @@ def load_model(name='model1.pt'):
     return model
 
 
-def plot_weights():
-    model = load_model(name='model.pt')
-    subnetworks = list(model.children())
-    mlp = subnetworks[0]
-    resnet_1d = subnetworks[1]
-    resnet_2d = subnetworks[2]
-    convs = [layer for layer in resnet_2d.children() if isinstance(layer, torch.nn.Conv2d)]
-    conv = convs[0]
-
-    L = 10
-    X = torch.as_tensor(np.random.rand(1, 3, L, L))
-    print(conv._backward(X))
-
-
-    """
-    Xs = list()
-    data_manager = DataManager(DATA_PATH, TEMP_PATH)
-    for feature_set in data_manager.proteins(dataset='debug'):
-        X, _ = feature_set_to_tensors(feature_set)
-        L = int(X[0][0])
-        X = X[2].data.numpy()
-        X = torch.as_tensor(np.concatenate([X[np.newaxis, ...], np.random.rand(1, 3, L, L)], axis=1), dtype=torch.float32)
-        Xs.append(X)
-
-    M = list()
-    for i in range(len(Xs)):
-        X = Xs[i]
-        Y = conv.forward(X)
-        Y = Y.data.numpy()
-
-        sigmoid = lambda x: 1. / (1. + np.exp(-x))
-
-        Y = sigmoid(Y)[0, 2, :, :]
-
-        idx = np.where(Y == np.min(Y))
-        idx_i, idx_j = idx[0][0], idx[1][0]
-
-        X = X.data.numpy()[0, 2, :, :]
-        X = X[idx_i-4:idx_i+5, idx_j-4:idx_j+5]
-        if X.shape == (9, 9):
-
-            plt.imshow(X)
-            plt.colorbar()
-            plt.show()
-
-            M.append(X)
-
-    X = np.mean(np.asarray(M), axis=0)
-    plt.imshow(X)
-    plt.colorbar()
-    plt.show()
-
-    print(idx_i, idx_j)
-    """
-
-
 def predict():
-    validation_set, sequence_names, target_maps = list(), list(), list()
+    validation_set, sequence_names, target_maps, all_coords, all_ssp, all_Meff = list(), list(), list(), list(), list(), list()
     data_manager = DataManager(DATA_PATH, TEMP_PATH)
-    for feature_set in data_manager.proteins(dataset='benchmark_set_casp11'):
+    for feature_set in data_manager.proteins(dataset='benchmark_set_membrane'):
         sequence_names.append(feature_set.prot_name)
         X, Y = feature_set_to_tensors(feature_set)
         validation_set.append(X)
         target_maps.append(Y)
+        all_coords.append(feature_set.coordinates)
+        all_ssp.append(feature_set.ssp)
+        all_Meff.append(np.sum(feature_set.msa_weights))
 
     print('Predicting...')
     predicted_maps = dict()
-    for k in range(5):
+    N_MODELS = 7
+    for k in range(N_MODELS):
         model = load_model(name='model%i.pt' % (k+1))
         predicted_maps[k] = [np.squeeze(Y.data.numpy()) for Y in model.forward(validation_set)]
 
     print('Evaluating...')
     # Saves short-range PPV, medium-range PPV, long-range PPV, MCC, accuracy, etc.
+    print('Name, N, Meff, PPV, PPV/2, PPV/5, PPV/10, PPV-short, PPV/2-short, PPV/5-short, PPV/10-short, PPV-medium, PPV/2-medium, PPV/5-medium, PPV/10-medium, PPV-long, PPV/2-long, PPV/5-long, PPV/10-long, TM-score, RMSD')
     evaluation = Evaluation()
     for i in range(len(validation_set)):
         seq_name = sequence_names[i]
-        pred_cmap = ContactMap(np.mean(np.asarray([predicted_maps[k][i][TARGET_CONTACT_THRESHOLD_ID, :, :] for k in range(5)]), axis=0))
-
+        pred_cmap = ContactMap(np.mean(np.asarray(
+            [predicted_maps[k][i][TARGET_CONTACT_THRESHOLD_ID, :, :] for k in range(N_MODELS)]), axis=0))
+        Meff = all_Meff[i]
         target_cmap = ContactMap(np.squeeze(
                 target_maps[i].data.numpy())[TARGET_CONTACT_THRESHOLD_ID, :, :])
+        evaluation.add('-', seq_name, pred_cmap, target_cmap, min_aa_separation)
 
-        entry = evaluation.add('-', '-', pred_cmap, target_cmap, min_aa_separation)
-        print('PPV for protein %s: %f' % (seq_name, entry['PPV']))
-    avg_best_l_ppv = evaluation.get('-', 'PPV', criterion='L/10')
-    print('\nAverage best-L PPV: %f\n' % avg_best_l_ppv)
-    return avg_best_l_ppv
+        coords_target, ssp = all_coords[i], all_ssp[i]
+        gf = GaussFold(sep=1, n_init_sols=1)
+        gf.optimizer = Optimizer(
+            use_lbfgs=True,       # Use L-BFGS for improving new solutions
+            pop_size=1000,        # Population size
+            n_iter=300000,        # Maximum number of iterations
+            partition_size=20,    # Partition size for the selection of parents
+            mutation_rate=0.5,    # Percentage of child's points to be mutated
+            mutation_std=.1,      # Stdv of mutation noise
+            init_std=30.,         # Stdv for randomly generating initial solutions
+            early_stopping=20000) # Maximum number of iterations without improvement
+        coords_predicted = gf.run(pred_cmap.asarray(), ssp, verbose=False)
+        tm = tm_score(coords_predicted, coords_target)
+        r = rmsd(coords_predicted, coords_target)
+        print('%s, %i, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f' % (
+            seq_name,
+            len(pred_cmap.asarray()),
+            Meff,
+            evaluation.get('-', 'PPV', criterion='L', seq_name=seq_name),
+            evaluation.get('-', 'PPV', criterion='L/2', seq_name=seq_name),
+            evaluation.get('-', 'PPV', criterion='L/5', seq_name=seq_name),
+            evaluation.get('-', 'PPV', criterion='L/10', seq_name=seq_name),
+            evaluation.get('-', 'PPV-short', criterion='L', seq_name=seq_name),
+            evaluation.get('-', 'PPV-short', criterion='L/2', seq_name=seq_name),
+            evaluation.get('-', 'PPV-short', criterion='L/5', seq_name=seq_name),
+            evaluation.get('-', 'PPV-short', criterion='L/10', seq_name=seq_name),
+            evaluation.get('-', 'PPV-medium', criterion='L', seq_name=seq_name),
+            evaluation.get('-', 'PPV-medium', criterion='L/2', seq_name=seq_name),
+            evaluation.get('-', 'PPV-medium', criterion='L/5', seq_name=seq_name),
+            evaluation.get('-', 'PPV-medium', criterion='L/10', seq_name=seq_name),
+            evaluation.get('-', 'PPV-long', criterion='L', seq_name=seq_name),
+            evaluation.get('-', 'PPV-long', criterion='L/2', seq_name=seq_name),
+            evaluation.get('-', 'PPV-long', criterion='L/5', seq_name=seq_name),
+            evaluation.get('-', 'PPV-long', criterion='L/10', seq_name=seq_name),
+            tm, r))
 
 
+
+def investigate():
+    data_manager = DataManager(DATA_PATH, TEMP_PATH)
+    target_maps = list()
+    for feature_set in data_manager.proteins(dataset='debug'):
+        _, Y = feature_set_to_tensors(feature_set)
+        target_maps.append(Y)
+
+    cmap = ContactMap(np.squeeze(target_maps[0].data.numpy())[2])
+    predicted_cmap = ContactMap(np.load('pred/pred/T0767-D1.npy'))
+    L = cmap.shape[0]
+
+    print(cmap.shape, predicted_cmap.shape)
+    comparative_plot(cmap, predicted_cmap, top=L/10)
+    plt.show()
+
+
+investigate()
 #predict()
 #hyper_optimization()
-plot_weights()
+#plot_weights()

@@ -4,6 +4,7 @@
 *.pt
 
 generated/
+pred/
 
 output.txt
 __pycache__/

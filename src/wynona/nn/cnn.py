@@ -2,8 +2,8 @@
 # cnn.py
 # author : Antoine Passemiers
 
-from deepcp.nn.base import AdaptiveModule
-from deepcp.nn.res_net import ResNet
+from wynona.nn.base import AdaptiveModule
+from wynona.nn.res_net import ResNet
 
 import numpy as np
 import torch
@@ -11,6 +11,46 @@ from torch.autograd import Variable
 
 
 class ConvNet(AdaptiveModule):
+    """Deep fully-convolutional neural network for Protein Contact Prediction.
+
+    The architecture is composed of multiple sub-networks:
+    (1) Multiple fully-connected modules for processing global features.
+    (2) A residual fully-convolutional network containing 1-dimensional modules,
+    for processing 1-dimensional features.
+    (3) A residual fully-convolutional network containing 2-dimensional modules,
+    for processing 2-dimensional features.
+
+    The output of the last fully-connected modules is tiled in order to match
+    the input dimensionality of the 1-dimensional resnet, and a Kronecker
+    product is applied to the output of the 1-dimensional resnet in order to
+    match the input dimensionality of the 2-dimensional resnet.
+    The output of the 2-dimensional resnet is symmetrized in order to produce
+    contact maps.
+
+    Attributes:
+        nonlinearity (str): Type of activation function to be used in
+            fully-connected, conv1d and conv2d modules (except the output layer).
+            Either 'relu', 'elu', 'leakyrelu' or 'tanh'.
+        use_batch_norm (bool): Whether to use batch normalization.
+        bn_momentum (float): Batch normalization momentum (used only if
+            `use_batch_norm` is set to True).
+        bn_track_running_stats (bool): Whether to save running statistics during
+            batch normalization (used only if `use_batch_norm` is set to True).
+        _use_global_features (bool): Whether to use the fully-connected modules
+            with global features as input.
+        module_0d_in_size (int): Number of global features.
+        module_1d_in_size (int): Number of 1-dimensional features.
+        module_2d_in_size (int): Number of 2-dimensional features.
+        module_0d_out_size (int): Number of output channels in the last
+            fully-connected module.
+        module_1d_out_size (int): Number of output channels in the last
+            1-dimensional module.
+        n_out_channels (int): Number of output channels in the last
+            2-dimensional module, which is also the output of the whole network.
+        global_modules (:obj:`torch.nn.Sequential`): Fully-connected modules.
+        conv_1d (:obj:`torch.nn.Sequential`): 1-dimensional modules.
+        conv_2d_1 (:obj:`torch.nn.Sequential`): 2-dimensional modules.
+    """
 
     def __init__(self, n_0d_features, n_1d_features, n_2d_features, n_out_channels,
                  bn_track_running_stats=False, bn_momentum=None, use_batch_norm=True,
@@ -125,4 +165,3 @@ class ConvNet(AdaptiveModule):
     @property
     def use_global_features(self):
         return self._use_global_features
-    

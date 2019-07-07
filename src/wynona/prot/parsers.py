@@ -2,14 +2,14 @@
 # parsers.py
 # author : Antoine Passemiers
 
-from deepcp.prot.sequence import Sequence
-from deepcp.prot.feature_set import FeatureSet
-from deepcp.prot.utils import *
-from deepcp.prot.exceptions import UnsupportedExtensionError
+from wynona.prot.sequence import Sequence
+from wynona.prot.feature_set import FeatureSet
+from wynona.prot.utils import *
+from wynona.prot.exceptions import UnsupportedExtensionError
 import pyximport
 pyximport.install(setup_args={'include_dirs': np.get_include()})
-from deepcp.prot.features import *
-from deepcp.prot.cov import *
+from wynona.prot.features import *
+from wynona.prot.cov import *
 
 import os
 import warnings
@@ -358,7 +358,7 @@ class PDBParser(Parser):
             for j, coords_j in enumerate(coordinates):
                 if coords_i is not None and coords_j is not None:
                     distances[i, j] = np.sqrt(np.sum((coords_i - coords_j) ** 2.))
-        return distances
+        return distances, coordinates
 
 
 def trim_alignment(sequences):
@@ -380,10 +380,12 @@ def parse_folder(folder, prot_name):
     # Get Distance map
     if os.path.isfile(os.path.join(folder, 'closest.Jan13.contacts')):
         distances = np.squeeze(CBParser().parse(os.path.join(folder, 'closest.Jan13.contacts')))
+        coordinates = None
     elif os.path.isfile(os.path.join(folder, 'contacts.CB')):
         distances = np.squeeze(CBParser().parse(os.path.join(folder, 'contacts.CB')))
+        coordinates = None
     else:
-        distances = PDBParser(sequence, prot_name).parse(os.path.join(folder, 'native.pdb'))
+        distances, coordinates = PDBParser(sequence, prot_name).parse(os.path.join(folder, 'native.pdb'))
     print((np.isnan(distances).sum() / float(L ** 2)))
 
     # Get Multiple Sequence Alignment for given sequence
@@ -393,11 +395,16 @@ def parse_folder(folder, prot_name):
     else:
         alignment = FastaParser().parse(os.path.join(folder, 'sequence.fa.blits4.trimmed'))['sequences']
     msa = np.asarray([sequence.to_array() for sequence in alignment], dtype=np.uint8)
-    #msa_weights = compute_weights(msa, 0.8)
-    msa_weights = np.ones(len(msa))
+    msa_weights = compute_weights(msa, 0.8)
+    #msa_weights = np.ones(len(msa))
+
+    # RaptorX-property
+    ss3 = SS3Parser([3, 4, 5]).parse(os.path.join(folder, 'ss3.txt')).T
+    acc = SS3Parser([3, 4, 5]).parse(os.path.join(folder, 'acc.txt')).T
+    diso = SS3Parser([3]).parse(os.path.join(folder, 'diso.txt')).T
 
     # Create feature set to be saved later
-    features = FeatureSet(prot_name, alignment, msa_weights, distances)
+    features = FeatureSet(prot_name, alignment, msa_weights, distances, coordinates, ss3.argmax(axis=0))
 
     # Add GaussDCA and plmDCA predictions
     gdca_dir = PredictionFileParser(L).parse(os.path.join(folder, 'dir.gaussdca'))
@@ -460,9 +467,6 @@ def parse_folder(folder, prot_name):
     features.add('self-information', self_information.T)
     features.add('partial-entropy', partial_entropy.T)
     features.add('ohe-sequence', ohe_sequence.T)
-    ss3 = SS3Parser([3, 4, 5]).parse(os.path.join(folder, 'ss3.txt')).T
-    acc = SS3Parser([3, 4, 5]).parse(os.path.join(folder, 'acc.txt')).T
-    diso = SS3Parser([3]).parse(os.path.join(folder, 'diso.txt')).T
     assert(diso.shape[0] == 1)
     features.add('ss3', ss3)
     features.add('acc', acc)
