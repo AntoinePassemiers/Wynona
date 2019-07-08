@@ -2,12 +2,9 @@
 # pssm.py
 # author : Antoine Passemiers
 
-from wynona.prot.parsers import FastaParser
 from wynona.prot.sequence import *
-from wynona.prot.utils import DATA_FOLDER
 
 import numpy as np
-import matplotlib.pyplot as plt
 
 
 # web.expasy.org/docs/relnotes/relstat.html
@@ -51,15 +48,3 @@ def compute_pssm(sequences):
     # 4) PSSM Matrix : log-odds ratios of each amino acid at each position
     M = np.log2(np.divide(Q, P))
     return F, F_stable, Q, Q_stable, M
-
-
-if __name__ == "__main__":
-
-    import os
-    filepath = os.path.join(DATA_FOLDER, '1A3A_A/ss.JH5')
-    parser = FastaParser()
-    fasta = parser.parse(filepath)
-    sequences = fasta['sequences']
-    _, _, _, _, pssm = compute_pssm(sequences)
-
-    print(pssm)

@@ -1,7 +1,25 @@
 *.aux
 *.log
 *.pyc
+*.pyd
+*.c
+
+*.swp
+*.ipynb
+*.log
+*.pt
+
+generated/
+pred/
+
+output.txt
+__pycache__/
+.ipynb_checkpoints/
 
 results/
 .ipynb_checkpoints/
 out/
+
+build/
+dist/
+wynona.egg-info/

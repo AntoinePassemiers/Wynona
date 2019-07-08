@@ -5,7 +5,9 @@
 using GaussDCA
 
 
-for (root, dirs, files) in walkdir(".")
+DATA_FOLDER = "../data/training_set"
+
+for (root, dirs, files) in walkdir(DATA_FOLDER)
     for file in files
         if (file == "alignment.a3m") || (file == "sequence.fa.blits4.trimmed")
             println(joinpath(root, file))
