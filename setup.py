@@ -24,4 +24,5 @@ setup(
         'scipy >= 1.1.0',
         'Cython >= 1.1.0',
         'matplotlib >= 3.0.2',
+        'pandas >= 0.23.4'
         'torch >= 1.0.0'])
