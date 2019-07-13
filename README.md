@@ -18,5 +18,6 @@ python setup.py install
 
 - NumPy (>= 1.15.4)
 - Scipy (>= 1.1.0)
+- matplotlib (>= 3.0.2)
 - Cython (>= 0.29.2)
 - PyTorch (>= 1.0.0)
