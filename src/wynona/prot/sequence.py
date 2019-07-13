@@ -64,7 +64,7 @@ class Sequence:
     def __init__(self, data, comments=list()):
         self.comments = comments
         if isinstance(data, np.ndarray):
-            self.data = data
+            self.data = data.astype(AA_DTYPE)
         else:
             # If a string is passed, the latter is converted to a numpy array
             self.data = np.empty(len(data), dtype=AA_DTYPE)
@@ -202,5 +202,7 @@ class Sequence:
 
     def __eq__(self, other):
         """Check whether two sequences are perfectly identical """
+        if isinstance(other, str):
+            other = Sequence(other)
         return (self.__len__() == other.__len__()) and \
-            (np.count_nonzero(self.data[:] - other.data[:]) == self.__len__())
+            (np.count_nonzero(self.data[:] - other.data[:]) == 0)

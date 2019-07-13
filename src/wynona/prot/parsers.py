@@ -6,8 +6,6 @@ from wynona.prot.sequence import Sequence
 from wynona.prot.feature_set import FeatureSet
 from wynona.prot.utils import *
 from wynona.prot.exceptions import UnsupportedExtensionError
-import pyximport
-pyximport.install(setup_args={'include_dirs': np.get_include()})
 from wynona.prot.features import *
 from wynona.prot.cov import *
 
@@ -220,8 +218,8 @@ def parse_folder(folder, prot_name):
     print((np.isnan(distances).sum() / float(L ** 2)))
 
     # Get Multiple Sequence Alignment for given sequence
-    if os.path.isfile(os.path.join(folder, 'alignment.a3m')):
-        alignment = FastaParser().parse(os.path.join(folder, 'alignment.a3m'))['sequences']
+    if os.path.isfile(os.path.join(folder, 'trimmed.a3m')):
+        alignment = FastaParser().parse(os.path.join(folder, 'trimmed.a3m'))['sequences']
     else:
         alignment = FastaParser().parse(os.path.join(folder, 'sequence.fa.blits4.trimmed'))['sequences']
     msa = np.asarray([sequence.to_array() for sequence in alignment], dtype=np.uint8)

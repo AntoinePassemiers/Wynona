@@ -11,14 +11,13 @@
 
 generated/
 pred/
+results/
+out/
 
 output.txt
 __pycache__/
+.pytest_cache/
 .ipynb_checkpoints/
-
-results/
-.ipynb_checkpoints/
-out/
 
 build/
 dist/

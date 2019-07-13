@@ -21,7 +21,8 @@ except ImportError:
 source_folder = 'wynona'
 source_files = [
     'prot/cov.pyx',
-    'prot/features.pyx'
+    'prot/features.pyx',
+    'prot/nw.pyx'
 ]
 
 def configuration(parent_package=str(), top_path=None):

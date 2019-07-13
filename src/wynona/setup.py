@@ -16,6 +16,7 @@ SUB_PACKAGES = [
 SRC_FILES = [
     (['prot/cov.c'], 'prot.cov'),
     (['prot/features.c'], 'prot.features'),
+    (['prot/nw.c'], 'prot.nw')
 ]
 
 COMPILE_ARGS = [
