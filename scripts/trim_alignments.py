@@ -33,4 +33,3 @@ if __name__ == '__main__':
                     sequence = align(target_sequence, sequence)
                     f.write('>%s\n' % comment)
                     f.write(str(sequence) + '\n')
-
