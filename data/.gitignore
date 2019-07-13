@@ -10,3 +10,7 @@ benchmark_set/
 benchmark_set_cameo/
 benchmark_set_casp11/
 benchmark_set_membrane/
+benchmark_set_old/
+benchmark_set_cameo_old/
+benchmark_set_casp11_old/
+benchmark_set_membrane_old/
