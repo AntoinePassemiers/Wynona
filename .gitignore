@@ -9,6 +9,8 @@
 *.log
 *.pt
 
+*.zip
+
 out.txt
 
 psicov.exe

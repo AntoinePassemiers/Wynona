@@ -15,6 +15,10 @@ for (root, dirs, files) in walkdir(DATA_FOLDER)
                 DIR = gDCA(joinpath(root, file), score = :DI, min_separation = 1)
                 printrank(joinpath(root, "dir.gaussdca"), DIR)
             end
+            if !isfile(joinpath(root, "fnr.gaussdca"))
+                FNR = gDCA(joinpath(root, file), score = :FNR, min_separation = 1)
+                printrank(joinpath(root, "fnr.gaussdca"), FNR)
+            end
         end
     end
 end
