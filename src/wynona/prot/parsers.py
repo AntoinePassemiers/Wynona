@@ -215,7 +215,6 @@ def parse_folder(folder, prot_name):
         coordinates = None
     else:
         distances, coordinates = PDBParser(sequence, prot_name).parse(os.path.join(folder, 'native.pdb'))
-    print((np.isnan(distances).sum() / float(L ** 2)))
 
     # Get Multiple Sequence Alignment for given sequence
     if os.path.isfile(os.path.join(folder, 'trimmed.a3m')):
@@ -231,24 +230,28 @@ def parse_folder(folder, prot_name):
     acc = SS3Parser([3, 4, 5]).parse(os.path.join(folder, 'acc.txt')).T
     diso = SS3Parser([3]).parse(os.path.join(folder, 'diso.txt')).T
 
-    # Create feature set to be saved later
+    # Create feature set
     features = FeatureSet(prot_name, alignment, msa_weights, distances, coordinates, ss3.argmax(axis=0))
 
-    # Add GaussDCA and plmDCA predictions
+    # Add GaussDCA predictions
     gdca_dir = PredictionFileParser(L).parse(os.path.join(folder, 'dir.gaussdca'))
     features.add('gdca-dir', gdca_dir)
     gdca_fnr = PredictionFileParser(L).parse(os.path.join(folder, 'fnr.gaussdca'))
     features.add('gdca-fnr', gdca_fnr)
-    if os.path.isfile(os.path.join(folder, 'plmdca.out')):
-        plmdca = PredictionFileParser(L, delimiter=',').parse(os.path.join(folder, 'plmdca.out'))
-    else:
-        plmdca = PredictionFileParser(L, delimiter=',').parse(os.path.join(folder, 'sequence.fa.plmdca2'))
-    features.add('plmdca', plmdca)
-    if os.path.isfile(os.path.join(folder, 'psicov.out')):
-        psicov = PredictionFileParser(L).parse(os.path.join(folder, 'psicov.out'))
-    else:
-        psicov = PredictionFileParser(L).parse(os.path.join(folder, 'sequence.fa.psicov2'))
-    features.add('psicov', psicov)
+    
+    # Add plmDCA predictions
+    # if os.path.isfile(os.path.join(folder, 'plmdca.out')):
+    #     plmdca = PredictionFileParser(L, delimiter=',').parse(os.path.join(folder, 'plmdca.out'))
+    # else:
+    #     plmdca = PredictionFileParser(L, delimiter=',').parse(os.path.join(folder, 'sequence.fa.plmdca2'))
+    # features.add('plmdca', plmdca)
+
+    # Add PSICOV predictions
+    # if os.path.isfile(os.path.join(folder, 'psicov.out')):
+    #     psicov = PredictionFileParser(L).parse(os.path.join(folder, 'psicov.out'))
+    # else:
+    #     psicov = PredictionFileParser(L).parse(os.path.join(folder, 'sequence.fa.psicov2'))
+    # features.add('psicov', psicov)
 
     # Get additional features from multiple sequence alignment
     feature_names = [
@@ -259,35 +262,6 @@ def parse_folder(folder, prot_name):
     features.add('mutual-information', mi)
     features.add('normalized-mutual-information', nmi)
     features.add('cross-entropy', cross_entropy)
-
-    # Add PhyCMAP predictions
-    if os.path.isfile(os.path.join(folder, 'phycmap.out')):
-        phycmap = PredictionFileParser(L).parse(os.path.join(folder, 'phycmap.out'))
-        features.add('phycmap', phycmap)
-
-    # Add CCMPred predictions if available
-    if os.path.isfile(os.path.join(folder, 'ccmpred.out')):
-        ccmpred = CCMPredFileParser(L).parse(
-                os.path.join(folder, 'ccmpred.out'))
-        features.add('ccmpred', ccmpred)
-
-    # Add EVfold predictions if available
-    if os.path.isfile(os.path.join(folder, 'evfold.out')):
-        evfold = PredictionFileParser(L, target_cols=[4, 5]).parse(
-                os.path.join(folder, 'evfold.out'))
-        features.add('evfold', evfold)
-
-    # Add MetaPSICOV predictions if available
-    if os.path.isfile(os.path.join(folder, 'metapsicov.stage2.out')):
-        metapsicov = PredictionFileParser(L).parse(
-                os.path.join(folder, 'metapsicov.stage2.out'))
-        features.add('metapsicov', metapsicov)
-
-    # Add PConsC3 predictions if available
-    if os.path.isfile(os.path.join(folder, 'pconsc3.l5.out')):
-        pconsc3 = PredictionFileParser(L).parse(
-                os.path.join(folder, 'pconsc3.l5.out'))
-        features.add('pconsc3', pconsc3)
 
     # Get 1D features
     self_information, partial_entropy = extract_features_1d(msa, ['self-information', 'partial-entropy'])

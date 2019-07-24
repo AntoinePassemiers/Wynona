@@ -9,7 +9,7 @@ import os
 
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-DATA_FOLDER = os.path.join(ROOT, '../data/training_set')
+DATA_FOLDER = os.path.join(ROOT, '../data/benchmark_set_membrane')
 
 
 if __name__ == '__main__':

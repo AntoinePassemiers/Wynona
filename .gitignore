@@ -9,6 +9,10 @@
 *.log
 *.pt
 
+out.txt
+
+psicov.exe
+
 generated/
 pred/
 results/

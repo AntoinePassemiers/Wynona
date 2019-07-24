@@ -67,9 +67,9 @@ cdef class NeedlemanWunsch:
         self._a_matrix = np.zeros((n + 1, m + 1), dtype=np_score_t)
         with nogil:
             for i in range(1, n + 1):
-                self._a_matrix[0, i] = self._a_matrix[0, i - 1] + self._gap_score
+                self._a_matrix[i, 0] = self._a_matrix[i - 1, 0] + self._gap_score
             for j in range(1, m + 1):
-                self._a_matrix[j, 0] = self._a_matrix[j - 1, 0] + self._gap_score
+                self._a_matrix[0, j] = self._a_matrix[0, j - 1] + self._gap_score
 
     cdef void _compute_cell_scores(self, seq_t[:] seq1, seq_t[:] seq2):
         cdef int i, j

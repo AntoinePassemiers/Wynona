@@ -22,13 +22,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import sys
-sys.stdout = open('out.txt', 'w', buffering=1)
+#sys.stdout = open('out.txt', 'w', buffering=1)
 
 
 DEBUG = False
 
 
-DATA_PATH = '../data'
+DATA_PATH = 'data'
 TEMP_PATH = '../out/temp'
 
 min_aa_separation = 6
@@ -72,14 +72,13 @@ HYPER_PARAM_SPACE = {
 }
 """
 
+n_0d_features = 1
+n_1d_features = 121
+n_2d_features = 5
 
 TARGET_CONTACT_THRESHOLD_ID = 2
 contact_thresholds = [6., 7.5, 8., 8.5, 10.]
 target_contact_threshold = 8.
-
-n_0d_features = 1
-n_1d_features = 121
-n_2d_features = 7
 
 
 if DEBUG:
@@ -111,49 +110,22 @@ def feature_set_to_tensors(feature_set, remove_diag=False):
     contacts = np.asarray(contacts, dtype=np.double)[np.newaxis, ...]
 
     Y = torch.as_tensor(contacts, dtype=torch.float32)
+    Y = Variable(Y.type(torch.Tensor)) # TODO
 
     X_0D = torch.as_tensor(np.asarray(feature_set.features['global']['values']), dtype=torch.float32)
-    X_0D = X_0D[:n_0d_features]
     if X_0D.size()[0] >= 2:
         X_0D[0] = min(X_0D[0] / 1000., 1.)
         #X_0D[1] = min(X_0D[1] / 10000., 1.)
     X_1D = torch.as_tensor(np.asarray(feature_set.features['1-dim']['values']), dtype=torch.float32)
-    X_1D = X_1D[:n_1d_features, :]
     X_2D = torch.as_tensor(np.asarray(feature_set.features['2-dim']['values']), dtype=torch.float32)
-    X_2D = X_2D[:n_2d_features, :, :]
-
-    for i, x in enumerate(X_2D):
-        X_2D[i, :, :] = torch.as_tensor(apply_apc(x))
 
     X = (X_0D, X_1D, X_2D)
     return X, Y
 
 
 def train_model(data_manager, params, state_dict_path=None):
-    
-    # Load training proteins
-    print('Loading training sequences...')
-    training_set = list()
-    for feature_set in data_manager.proteins(dataset=training_set_name):
-        X, Y = feature_set_to_tensors(feature_set, remove_diag=False)
-        (X_0D, X_1D, X_2D) = X
-        if X_0D.size()[0] > 0 and X_1D.size()[0] > 0 and X_2D.size()[0]:
-            training_set.append((X, Y))
 
-    # Load validation proteins
-    print('Loading validation sequences...')
-    validation_set = list()
-    for feature_set in data_manager.proteins(dataset=validation_set_name):
-        X, Y = feature_set_to_tensors(feature_set)
-        (X_0D, X_1D, X_2D) = X
-        if X_0D.size()[0] > 0 and X_1D.size()[0] > 0 and X_2D.size()[0]:
-            validation_set.append((X, Y))
-
-    # Initialize data loader
-    data_loader = AdaptiveDataLoader(
-            dataset=training_set,
-            shuffle=True,
-            batch_size=params['batch_size'])
+    data_manager.load('training-set')
 
     # Initialize model
     model = ConvNet(
@@ -192,65 +164,67 @@ def train_model(data_manager, params, state_dict_path=None):
     n_steps_without_improvement = 0
     best_score = -np.inf
     try:
-        for epoch in range(num_epochs):
-            for i, (X, Y) in enumerate(data_loader):
+        while True:
+            X, Y = list(), list()
+            for feature_set in data_manager.sample(params['batch_size']):
+                x, y = feature_set_to_tensors(feature_set, remove_diag=False)
+                X.append(x)
+                Y.append(y)
 
-                # Ground-truth contact maps
-                Y = list(map(lambda x: Variable(x.type(torch.Tensor)), Y))
-                batch_size = len(Y)
+            # Optimization step
+            print('\tTraining G...')
+            optimizer.zero_grad()
+            print('\t\tForward pass...')
+            predicted = model.forward(X)
+            print('\t\tBackward pass...')
+            loss = criterion(predicted[0], Y) # TODO: predicted[0] -> predicted ?
+            loss.backward()
+            training_loss.append(loss.item())
+            print('\t\tUpdate parameters...') 
+            optimizer.step()
 
-                # Optimization step
-                print('\tTraining G...')
-                optimizer.zero_grad()
-                print('\t\tForward pass...')
-                predicted = model.forward(X)
-                print('\t\tBackward pass...')
-                loss = criterion(predicted[0], Y) # TODO: predicted[0] -> predicted ?
-                loss.backward()
-                training_loss.append(loss.item())
-                print('\t\tUpdate parameters...') 
-                optimizer.step()
+            # Compute best-L PPV on current batch
+            evaluation = Evaluation()
+            for pred_map, target_map in zip(predicted, Y):
+                pred_cmap = ContactMap(np.squeeze(
+                        pred_map.data.numpy())[TARGET_CONTACT_THRESHOLD_ID, :, :])
+                target_cmap = ContactMap(np.squeeze(
+                        target_map.data.numpy())[TARGET_CONTACT_THRESHOLD_ID, :, :])
+                evaluation.add('-', '-', pred_cmap, target_cmap, min_aa_separation)
+            avg_best_l_ppv = evaluation.get('-', 'PPV', criterion='L')
+            training_ppv.append(avg_best_l_ppv)
+            print('\tBest-L PPV on current batch: %f' % avg_best_l_ppv)
 
-                # Compute best-L PPV on current batch
+            
+            if step % num_steps_for_eval == 0:
+
+                # Compute best-L PPV on validation set
+                predicted_maps = model.forward([X for X, Y in validation_set])
+                target_maps = [Y for X, Y in validation_set]
                 evaluation = Evaluation()
-                for pred_map, target_map in zip(predicted, Y):
+                for i in range(len(validation_set)):
                     pred_cmap = ContactMap(np.squeeze(
-                            pred_map.data.numpy())[TARGET_CONTACT_THRESHOLD_ID, :, :])
+                            predicted_maps[i].data.numpy())[TARGET_CONTACT_THRESHOLD_ID, :, :])
                     target_cmap = ContactMap(np.squeeze(
-                            target_map.data.numpy())[TARGET_CONTACT_THRESHOLD_ID, :, :])
+                            target_maps[i].data.numpy())[TARGET_CONTACT_THRESHOLD_ID, :, :])
                     evaluation.add('-', '-', pred_cmap, target_cmap, min_aa_separation)
                 avg_best_l_ppv = evaluation.get('-', 'PPV', criterion='L')
-                training_ppv.append(avg_best_l_ppv)
-                print('\tBest-L PPV on current batch: %f' % avg_best_l_ppv)
+                validation_ppv.append(avg_best_l_ppv)
+                print('\tBest-L PPV on validation set: %f' % avg_best_l_ppv)
 
-                if step % num_steps_for_eval == 0:
+                # Check if Best-L PPV has increased over last k steps
+                if validation_ppv[-1]  <= best_score:
+                    n_steps_without_improvement += num_steps_for_eval
+                    if n_steps_without_improvement >= early_stopping:
+                        raise EarlyStoppingException()
+                else:
+                    torch.save(model.state_dict(), state_dict_path) # Checkpoint
+                    n_steps_without_improvement = 0
+                    best_score = validation_ppv[-1]
+            
 
-                    # Compute best-L PPV on validation set
-                    predicted_maps = model.forward([X for X, Y in validation_set])
-                    target_maps = [Y for X, Y in validation_set]
-                    evaluation = Evaluation()
-                    for i in range(len(validation_set)):
-                        pred_cmap = ContactMap(np.squeeze(
-                                predicted_maps[i].data.numpy())[TARGET_CONTACT_THRESHOLD_ID, :, :])
-                        target_cmap = ContactMap(np.squeeze(
-                                target_maps[i].data.numpy())[TARGET_CONTACT_THRESHOLD_ID, :, :])
-                        evaluation.add('-', '-', pred_cmap, target_cmap, min_aa_separation)
-                    avg_best_l_ppv = evaluation.get('-', 'PPV', criterion='L')
-                    validation_ppv.append(avg_best_l_ppv)
-                    print('\tBest-L PPV on validation set: %f' % avg_best_l_ppv)
-
-                    # Check if Best-L PPV has increased over last k steps
-                    if validation_ppv[-1]  <= best_score:
-                        n_steps_without_improvement += num_steps_for_eval
-                        if n_steps_without_improvement >= early_stopping:
-                            raise EarlyStoppingException()
-                    else:
-                        torch.save(model.state_dict(), state_dict_path) # Checkpoint
-                        n_steps_without_improvement = 0
-                        best_score = validation_ppv[-1]
-
-                print('End of step %i' % step)
-                step += 1
+            print('End of step %i' % step)
+            step += 1
 
     except EarlyStoppingException:
         print('Early stopping. Loss did not decrease during last %i steps.' % early_stopping)
@@ -274,7 +248,7 @@ def train_model(data_manager, params, state_dict_path=None):
 
 
 def hyper_optimization():
-    data_manager = DataManager(DATA_PATH, TEMP_PATH)
+    data_manager = DataManager(DATA_PATH)
     save_folder = 'hyperopt'
     hyperoptimizer = Hyperoptimizer(
             HYPER_PARAM_SPACE,
@@ -291,7 +265,7 @@ def evaluate(data_manager, model):
     validation_set = list()
     sequence_names = list()
     target_maps = list()
-    data_manager = DataManager(DATA_PATH, TEMP_PATH)
+    data_manager = DataManager(DATA_PATH)
     for feature_set in data_manager.proteins(dataset=validation_set_name):
         sequence_names.append(feature_set.prot_name)
         X, Y = feature_set_to_tensors(feature_set)
@@ -347,7 +321,7 @@ def load_model(name='model1.pt'):
 
 def predict():
     validation_set, sequence_names, target_maps, all_coords, all_ssp, all_Meff = list(), list(), list(), list(), list(), list()
-    data_manager = DataManager(DATA_PATH, TEMP_PATH)
+    data_manager = DataManager(DATA_PATH)
     for feature_set in data_manager.proteins(dataset='benchmark_set_membrane'):
         sequence_names.append(feature_set.prot_name)
         X, Y = feature_set_to_tensors(feature_set)
@@ -416,7 +390,7 @@ def predict():
 
 
 def investigate():
-    data_manager = DataManager(DATA_PATH, TEMP_PATH)
+    data_manager = DataManager(DATA_PATH)
     target_maps = list()
     for feature_set in data_manager.proteins(dataset='debug'):
         _, Y = feature_set_to_tensors(feature_set)
@@ -431,7 +405,7 @@ def investigate():
     plt.show()
 
 
-investigate()
+#investigate()
 #predict()
-#hyper_optimization()
+hyper_optimization()
 #plot_weights()
