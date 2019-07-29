@@ -2,10 +2,10 @@
 # parsers.py
 # author : Antoine Passemiers
 
+from wynona.parsers.base import Parser
 from wynona.prot.sequence import Sequence
 from wynona.prot.feature_set import FeatureSet
 from wynona.prot.utils import *
-from wynona.prot.exceptions import UnsupportedExtensionError
 from wynona.prot.features import *
 from wynona.prot.cov import *
 
@@ -20,20 +20,6 @@ try:
     import cPickle as pickle
 except:
     import pickle
-
-
-class Parser:
-
-    def getSupportedExtensions(self):
-        return list()
-
-    def parse(self, filepath):
-        _, file_ext = os.path.splitext(filepath)
-        if not file_ext in self.getSupportedExtensions():
-            raise UnsupportedExtensionError(
-                "Extension %s is not supported by parser %s" % (file_ext, self.__class__.__name__))
-        else:
-            return self.__parse__(filepath)
 
 
 class PairsParser(Parser):

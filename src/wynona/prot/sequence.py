@@ -7,8 +7,8 @@ import numpy as np
 
 AA_DTYPE = np.int8
 
-N_STATES = 22
-N_AA_SYMBOLS = 22
+N_STATES = 23
+N_AA_SYMBOLS = 23
 AA_SYMBOLS = [
     '-', # (Gap)
     'A', # Alanine
@@ -32,8 +32,8 @@ AA_SYMBOLS = [
     'Y', # Tyrosine
     'V', # Valine
     'X', # (Unknown)
-    
     'B', # Asparagine / aspartic acid
+    
     'U', # Selenocysteine (stop codon)
     'O', # Pyrrolysine (stop codon)
     'Z'] # Glutamine / glutamic acid

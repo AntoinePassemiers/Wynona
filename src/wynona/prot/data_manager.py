@@ -2,7 +2,7 @@
 # data_manager.py
 # author : Antoine Passemiers
 
-from wynona.prot.parsers import parse_folder
+from wynona.parsers.parse import parse_folder
 
 import os
 import random

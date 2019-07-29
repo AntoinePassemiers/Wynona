@@ -2,8 +2,8 @@
 # pdb_parser.py
 # author : Antoine Passemiers
 
+from wynona.parsers.base import Parser
 from wynona.prot.align import align_to_itself
-from wynona.prot.parsers import Parser
 
 import numpy as np
 

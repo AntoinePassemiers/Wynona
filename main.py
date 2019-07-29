@@ -7,8 +7,8 @@ from wynona.prot.data_manager import DataManager
 from wynona.prot.evaluation import Evaluation
 from wynona.prot.exceptions import EarlyStoppingException
 from wynona.prot.utils import *
-from wynona.prot.parsers import apply_apc
-from wynona.nn import ConvNet, AdaptiveDataLoader, BinaryCrossEntropy
+from wynona.parsers.parse import apply_apc
+from wynona.nn import ConvNet, BinaryCrossEntropy
 from wynona.nn import Hyperoptimizer
 
 from gaussfold import GaussFold, Optimizer, tm_score, rmsd
@@ -73,7 +73,7 @@ HYPER_PARAM_SPACE = {
 """
 
 n_0d_features = 1
-n_1d_features = 121
+n_1d_features = 122
 n_2d_features = 5
 
 TARGET_CONTACT_THRESHOLD_ID = 2

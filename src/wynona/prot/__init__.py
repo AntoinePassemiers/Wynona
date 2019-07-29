@@ -6,8 +6,6 @@ from .evaluation import *
 from .exceptions import *
 from .feature_set import *
 # from .features import *
-from .parsers import *
-from .pdb_parser import *
 from .pssm import *
 from .sequence import *
 from .utils import *

@@ -11,6 +11,7 @@ DELETE_GENERATED_C_FILES = False
 SRC_FOLDER = 'wynona'
 SUB_PACKAGES = [
     'nn',
+    'parsers',
     'prot'
 ]
 SRC_FILES = [
