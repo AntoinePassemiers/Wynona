@@ -11,10 +11,6 @@ class EvaluationException(Exception):
     pass
 
 
-class UnsupportedExtensionError(Exception):
-    pass
-
-
 class TextFileParsingError(Exception):
     pass
 

@@ -22,12 +22,12 @@ def align(fixed_length_seq, aligned_seq):
     return aligned_seq
 
 
-def align_to_itself(self, query_seq, whole_seq):
-    fixed_length_seq = str(fixed_length_seq)
-    aligned_seq = str(aligned_seq)
+def align_to_itself(query_seq, whole_seq):
     if len(query_seq) != len(whole_seq):
-        query_seq = Sequence(query_seq)
-        whole_seq = Sequence(whole_seq)
+        if not isinstance(query_seq, Sequence):
+            query_seq = Sequence(query_seq)
+        if not isinstance(whole_seq, Sequence):
+            whole_seq = Sequence(whole_seq)
         alseq1, alseq2 = NeedlemanWunsch().align(query_seq, whole_seq)
         alseq1, alseq2 = alseq1.__str__(), alseq2.__str__()
         assert(len(whole_seq) == len(alseq2))

@@ -2,7 +2,7 @@
 # base.py: Base parser
 # author : Antoine Passemiers
 
-from wynona.prot.exceptions import UnsupportedExtensionError
+from wynona.parsers.exceptions import UnsupportedExtensionError
 
 import os
 

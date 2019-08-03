@@ -3,6 +3,7 @@
 # author : Antoine Passemiers
 
 from wynona.parsers.base import Parser
+from wynona.prot.align import align_to_itself
 from wynona.prot.sequence import Sequence
 from wynona.prot.feature_set import FeatureSet
 from wynona.prot.utils import *
@@ -203,10 +204,10 @@ def parse_folder(folder, prot_name):
         distances, coordinates = PDBParser(sequence, prot_name).parse(os.path.join(folder, 'native.pdb'))
 
     # Get Multiple Sequence Alignment for given sequence
-    if os.path.isfile(os.path.join(folder, 'trimmed.a3m')):
-        alignment = FastaParser().parse(os.path.join(folder, 'trimmed.a3m'))['sequences']
-    else:
+    if os.path.isfile(os.path.join(folder, 'sequence.fa.blits4.trimmed')):
         alignment = FastaParser().parse(os.path.join(folder, 'sequence.fa.blits4.trimmed'))['sequences']
+    else:
+        alignment = FastaParser().parse(os.path.join(folder, 'trimmed.a3m'))['sequences']
     msa = np.asarray([sequence.to_array() for sequence in alignment], dtype=np.uint8)
     #msa_weights = compute_weights(msa, 0.8)
     msa_weights = np.ones(len(msa))
@@ -252,6 +253,23 @@ def parse_folder(folder, prot_name):
     # Get 1D features
     self_information, partial_entropy = extract_features_1d(msa, ['self-information', 'partial-entropy'])
     ohe_sequence = sequence.to_array(one_hot_encoded=True)
+
+    if os.path.isfile(os.path.join(folder, 'trimmed.a3m')) and os.path.isfile(os.path.join(folder, 'sequence.fa.blits4.trimmed')):
+        extra_seq = FastaParser().parse(os.path.join(folder, 'trimmed.a3m'))['sequences'][0]
+        valid_indices = align_to_itself(sequence, extra_seq)
+
+        print('Reshape: %i -> %i' % (len(extra_seq), len(sequence)))
+        if len(self_information) == len(extra_seq):
+            self_information = self_information[valid_indices]
+        if len(partial_entropy) == len(extra_seq):
+            partial_entropy = partial_entropy[valid_indices]
+        if ss3.shape[1] == len(extra_seq):
+            ss3 = ss3[:, valid_indices]
+        if acc.shape[1] == len(extra_seq):
+            acc = acc[:, valid_indices]
+        if diso.shape[1] == len(extra_seq):
+            diso = diso[:, valid_indices]
+
     features.add('self-information', self_information.T)
     features.add('partial-entropy', partial_entropy.T)
     features.add('ohe-sequence', ohe_sequence.T)

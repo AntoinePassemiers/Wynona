@@ -45,7 +45,7 @@ class FeatureSet:
         self.features['global']['values'] = np.asarray(self.features['global']['values'])
         self.features['1-dim']['values'] = np.concatenate(self.features['1-dim']['values'], axis=0)
         self.features['2-dim']['values'] = np.concatenate(self.features['2-dim']['values'], axis=0)
-        self.features['2-dim']['values'][np.isnan(self.features['2-dim']['values'])] = 0 # TODO
-        self.features['2-dim']['values'][np.isinf(self.features['2-dim']['values'])] = 0 # TODO
+        #self.features['2-dim']['values'][np.isnan(self.features['2-dim']['values'])] = 0 # TODO
+        #self.features['2-dim']['values'][np.isinf(self.features['2-dim']['values'])] = 0 # TODO
         self.ready_to_use = True
         return self

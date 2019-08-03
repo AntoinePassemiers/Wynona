@@ -39,6 +39,7 @@ class DataManager:
         return seqdata
 
     def find_protein_folder(self, prot_name):
+        print(prot_name)
         for subdir in os.listdir(self.data_dir):
             subdir = os.path.join(self.data_dir, subdir, prot_name)
             if os.path.isdir(subdir):
