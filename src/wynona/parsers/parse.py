@@ -3,6 +3,7 @@
 # author : Antoine Passemiers
 
 from wynona.parsers.base import Parser
+from wynona.parsers.pdb_parser import PDBParser
 from wynona.prot.align import align_to_itself
 from wynona.prot.sequence import Sequence
 from wynona.prot.feature_set import FeatureSet
@@ -223,8 +224,8 @@ def parse_folder(folder, prot_name):
     # Add GaussDCA predictions
     gdca_dir = PredictionFileParser(L).parse(os.path.join(folder, 'dir.gaussdca'))
     features.add('gdca-dir', gdca_dir)
-    gdca_fnr = PredictionFileParser(L).parse(os.path.join(folder, 'fnr.gaussdca'))
-    features.add('gdca-fnr', gdca_fnr)
+    #gdca_fnr = PredictionFileParser(L).parse(os.path.join(folder, 'fnr.gaussdca'))
+    #features.add('gdca-fnr', gdca_fnr)
     
     # Add plmDCA predictions
     # if os.path.isfile(os.path.join(folder, 'plmdca.out')):

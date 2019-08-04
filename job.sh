@@ -1,12 +1,12 @@
 #!/bin/sh -l
 
-#PBS -l walltime=100:00:00
+#PBS -l walltime=20:00:00
 #PBS -l nodes=1:ppn=8
 #PBS -l mem=128gb
 #PBS -l file=1000gb
-#PBS -N deepcp
-#PBS -o deepcp.out
-#PBS -e deepcp.err
+#PBS -N wynona
+#PBS -o wynona.out
+#PBS -e wynona.err
 
 # Load Python and python modules
 module purge

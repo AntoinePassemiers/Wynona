@@ -20,11 +20,9 @@ class DataManager:
         self.dataset_name = ''
 
     def load(self, dataset_name):
-        with open(os.path.join(self.data_dir, 'sets.json'), 'r') as f:
-            sets = json.load(f)
-            self.dataset = list()
-            for prot_name in sets[dataset_name]:
-                self.dataset.append(prot_name)
+        self.dataset = list()
+        for prot_name in os.listdir(os.path.join(self.data_dir, dataset_name)):
+            self.dataset.append(prot_name)
         self.dataset_name = dataset_name
         return self
 

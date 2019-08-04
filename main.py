@@ -74,7 +74,7 @@ HYPER_PARAM_SPACE = {
 
 n_0d_features = 1
 n_1d_features = 122
-n_2d_features = 5
+n_2d_features = 4
 
 TARGET_CONTACT_THRESHOLD_ID = 2
 contact_thresholds = [6., 7.5, 8., 8.5, 10.]
@@ -124,8 +124,11 @@ def feature_set_to_tensors(feature_set, remove_diag=False):
 
 
 def train_model(data_manager, params, state_dict_path=None):
-
-    data_manager.load('training-set')
+    data_manager.load('training_set')
+    #validation_set = list()
+    #for feature_set in data_manager.sample(20):
+    #    x, y = feature_set_to_tensors(feature_set, remove_diag=False)
+    #    validation_set.append((X, Y))
 
     # Initialize model
     model = ConvNet(
